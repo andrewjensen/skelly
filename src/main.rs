@@ -3,13 +3,12 @@ use image::{ImageBuffer, RgbaImage};
 use log::{error, info};
 // use once_cell::sync::Lazy;
 use std::fs;
-use swash::scale::image::Image;
 use swash::scale::{Render, ScaleContext, Source, StrikeWith};
 use swash::shape::ShapeContext;
-use swash::text::cluster::{CharCluster, CharInfo, Parser, Token};
+use swash::text::cluster::{CharCluster, Parser, Token};
 use swash::text::Script;
-use swash::zeno::{Format, Vector};
-use swash::{FontRef, GlyphId};
+use swash::zeno::Format;
+use swash::FontRef;
 
 const CANVAS_WIDTH: usize = 700;
 const CANVAS_HEIGHT: usize = 300;
@@ -22,8 +21,6 @@ const FILE_INPUT: &str = "./assets/simple.md";
 
 const FILE_FONT: &str = "./assets/Roboto-Regular.ttf";
 
-const DEBUG_GUIDE_LINE: bool = false;
-
 fn main() {
     env_logger::init();
 
@@ -35,21 +32,43 @@ fn main() {
         .filter(|line| !line.trim().is_empty())
         .collect();
 
-    let first_line = lines.first().unwrap();
-
-    info!("First line: {}", first_line);
-
     info!("Drawing text...");
 
     // Create a vector of pixel data (RGB format)
     let mut pixel_data = vec![255; CANVAS_WIDTH * CANVAS_HEIGHT * 4]; // Initialize with white
 
+    // Render a line of text
     let font_data = std::fs::read(FILE_FONT).unwrap();
     let font = FontRef::from_index(&font_data, 0).unwrap();
 
+    for (idx, line) in lines.iter().enumerate() {
+        let y = 30 + idx as u32 * 30;
+        let text_pos = Point2::<u32> { x: 20, y };
+        render_text(line, text_pos, &font, &mut pixel_data);
+    }
+
+    info!("Saving image...");
+
+    let img: RgbaImage =
+        ImageBuffer::from_vec(CANVAS_WIDTH as u32, CANVAS_HEIGHT as u32, pixel_data)
+            .expect("Failed to create image buffer");
+
+    // Save the image as a PNG file
+    img.save("./output/screen.png")
+        .expect("Failed to save image");
+
+    info!("Done");
+}
+
+fn render_text(
+    text_content: &str,
+    text_pos: Point2<u32>,
+    font: &swash::FontRef,
+    pixel_data: &mut Vec<u8>,
+) {
     let mut shape_context = ShapeContext::new();
     let mut shaper = shape_context
-        .builder(font)
+        .builder(*font)
         .script(Script::Latin)
         .size(FONT_SIZE)
         .features(&[("dlig", 1)])
@@ -63,7 +82,7 @@ fn main() {
     // an iterator that yields a Token per character
     let mut parser = Parser::new(
         Script::Latin,
-        first_line.char_indices().map(|(i, ch)| Token {
+        text_content.char_indices().map(|(i, ch)| Token {
             // The character
             ch,
             // Offset of the character in code units
@@ -89,8 +108,6 @@ fn main() {
 
     let mut scale_context = ScaleContext::new();
 
-    let text_pos = Point2::<u32> { x: 20, y: 100 };
-
     let mut run_offset_x: f32 = 0.0;
 
     shaper.shape_with(|cluster| {
@@ -99,15 +116,18 @@ fn main() {
         cluster.glyphs.iter().for_each(|glyph| {
             info!("Rendering a glyph...");
 
-            let image = render_glyph(
-                &mut scale_context,
-                &font,
-                FONT_SIZE,
-                true,
-                glyph.id,
-                glyph.x + run_offset_x,
-                glyph.y,
-            )
+            let mut scaler = scale_context
+                .builder(*font)
+                .size(FONT_SIZE)
+                .hint(true)
+                .build();
+            let image = Render::new(&[
+                Source::ColorOutline(0),
+                Source::ColorBitmap(StrikeWith::BestFit),
+                Source::Outline,
+            ])
+            .format(Format::Subpixel)
+            .render(&mut scaler, glyph.id)
             .unwrap();
 
             let glyph_image_data = image.data.as_slice();
@@ -167,59 +187,4 @@ fn main() {
             run_offset_x += glyph.advance.round();
         });
     });
-
-    if DEBUG_GUIDE_LINE {
-        info!("Drawing guide line...");
-        for x in 0..CANVAS_WIDTH {
-            let y = text_pos.y as usize;
-            let byte_offset: usize = (y * CANVAS_WIDTH + x) * 4;
-            pixel_data[byte_offset] = 255;
-            pixel_data[byte_offset + 1] = 0;
-            pixel_data[byte_offset + 2] = 0;
-        }
-    }
-
-    info!("Saving image...");
-
-    let img: RgbaImage =
-        ImageBuffer::from_vec(CANVAS_WIDTH as u32, CANVAS_HEIGHT as u32, pixel_data)
-            .expect("Failed to create image buffer");
-
-    // Save the image as a PNG file
-    img.save("./output/screen.png")
-        .expect("Failed to save image");
-
-    info!("Done");
-}
-
-fn render_glyph(
-    context: &mut ScaleContext,
-    font: &FontRef,
-    size: f32,
-    hint: bool,
-    glyph_id: GlyphId,
-    x: f32,
-    y: f32,
-) -> Option<Image> {
-    // Build the scaler
-    let mut scaler = context.builder(*font).size(size).hint(hint).build();
-    // Compute the fractional offset-- you'll likely want to quantize this
-    // in a real renderer
-
-    let offset = Vector::new(x.fract(), y.fract());
-    // let offset = Vector::new(0.0, 0.0);
-    // let offset = Vector::new(x, y);
-
-    // Select our source order
-    Render::new(&[
-        Source::ColorOutline(0),
-        Source::ColorBitmap(StrikeWith::BestFit),
-        Source::Outline,
-    ])
-    // Select a subpixel format
-    .format(Format::Subpixel)
-    // Apply the fractional offset
-    .offset(offset)
-    // Render the image
-    .render(&mut scaler, glyph_id)
 }
