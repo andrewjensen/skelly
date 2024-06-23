@@ -1,19 +1,19 @@
-use cgmath::Point2;
+use cosmic_text::BorrowedWithFontSystem;
+use cosmic_text::Color;
+use cosmic_text::Shaping;
+use cosmic_text::Style;
+use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, SwashCache, Weight};
 use image::{ImageBuffer, RgbaImage};
 use log::{error, info};
-// use once_cell::sync::Lazy;
 use std::fs;
-use swash::scale::{Render, ScaleContext, Source, StrikeWith};
-use swash::shape::ShapeContext;
-use swash::text::cluster::{CharCluster, Parser, Token};
-use swash::text::Script;
-use swash::zeno::Format;
-use swash::FontRef;
 
-const CANVAS_WIDTH: usize = 700;
-const CANVAS_HEIGHT: usize = 300;
+const CANVAS_WIDTH: usize = 1404;
+const CANVAS_HEIGHT: usize = 1872;
+const CANVAS_MARGIN_X: usize = 100;
+const CANVAS_MARGIN_TOP: usize = 200;
 
-const FONT_SIZE: f32 = 24.0;
+const LOREM_IPSUM: &str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Fermentum leo vel orci porta non. Eget sit amet tellus cras adipiscing enim. Vitae proin sagittis nisl rhoncus mattis rhoncus urna neque. Mi bibendum neque egestas congue quisque egestas. Pellentesque pulvinar pellentesque habitant morbi. Eget est lorem ipsum dolor. Quis imperdiet massa tincidunt nunc pulvinar. Sapien faucibus et molestie ac. Felis donec et odio pellentesque diam volutpat commodo sed. Sed faucibus turpis in eu mi bibendum. Sit amet consectetur adipiscing elit pellentesque habitant morbi tristique senectus. A arcu cursus vitae congue. Venenatis lectus magna fringilla urna porttitor rhoncus dolor. Amet purus gravida quis blandit turpis cursus in hac habitasse. Tortor consequat id porta nibh venenatis cras sed. Pellentesque diam volutpat commodo sed egestas egestas fringilla phasellus. Sit amet facilisis magna etiam tempor orci eu lobortis elementum. Varius duis at consectetur lorem donec massa sapien faucibus. Cursus vitae congue mauris rhoncus aenean vel elit scelerisque mauris.
+";
 
 const FILE_INPUT: &str = "./assets/simple.md";
 // const FILE_INPUT: &str = "./assets/oneline.md";
@@ -32,20 +32,65 @@ fn main() {
         .filter(|line| !line.trim().is_empty())
         .collect();
 
-    info!("Drawing text...");
-
     // Create a vector of pixel data (RGB format)
     let mut pixel_data = vec![255; CANVAS_WIDTH * CANVAS_HEIGHT * 4]; // Initialize with white
 
-    // Render a line of text
-    let font_data = std::fs::read(FILE_FONT).unwrap();
-    let font = FontRef::from_index(&font_data, 0).unwrap();
+    info!("Creating cosmic-text buffer...");
 
-    for (idx, line) in lines.iter().enumerate() {
-        let y = 30 + idx as u32 * 30;
-        let text_pos = Point2::<u32> { x: 20, y };
-        render_text(line, text_pos, &font, &mut pixel_data);
-    }
+    let mut font_system = FontSystem::new();
+    let mut swash_cache = SwashCache::new();
+
+    let mut display_scale: f32 = 1.0;
+    let metrics = Metrics::new(32.0, 44.0);
+
+    let buffer_width = CANVAS_WIDTH - CANVAS_MARGIN_X * 2;
+    let buffer_height = CANVAS_HEIGHT - CANVAS_MARGIN_TOP;
+
+    let mut buffer = Buffer::new_empty(metrics.scale(display_scale));
+    buffer.set_size(
+        &mut font_system,
+        Some(buffer_width as f32),
+        Some(buffer_height as f32),
+    );
+
+    let mut buffer = buffer.borrow_with(&mut font_system);
+
+    let text_color = Color::rgba(0x34, 0x34, 0x34, 0xFF);
+
+    set_buffer_text(&mut buffer);
+
+    info!("Drawing text...");
+
+    buffer.draw(&mut swash_cache, text_color, |x, y, w, h, color| {
+        if w > 1 || h > 1 {
+            info!("Drawing a rectangle with bigger width/height");
+        }
+
+        for buffer_x in x..(x + w as i32) {
+            for buffer_y in y..(y + h as i32) {
+                let canvas_x = buffer_x + CANVAS_MARGIN_X as i32;
+                let canvas_y = buffer_y + CANVAS_MARGIN_TOP as i32;
+
+                let (fg_r, fg_g, fg_b, fg_a) = color.as_rgba_tuple();
+                let alpha: f32 = fg_a as f32 / 255.0;
+
+                let idx = (canvas_y * (CANVAS_WIDTH as i32) + canvas_x) * 4;
+                let idx = idx as usize;
+
+                let bg_r = pixel_data[idx];
+                let bg_g = pixel_data[idx + 1];
+                let bg_b = pixel_data[idx + 2];
+
+                let result_r = (fg_r as f32 * alpha + bg_r as f32 * (1.0 - alpha)) as u8;
+                let result_g = (fg_g as f32 * alpha + bg_g as f32 * (1.0 - alpha)) as u8;
+                let result_b = (fg_b as f32 * alpha + bg_b as f32 * (1.0 - alpha)) as u8;
+
+                pixel_data[idx] = result_r;
+                pixel_data[idx + 1] = result_g;
+                pixel_data[idx + 2] = result_b;
+            }
+        }
+    });
 
     info!("Saving image...");
 
@@ -60,131 +105,36 @@ fn main() {
     info!("Done");
 }
 
-fn render_text(
-    text_content: &str,
-    text_pos: Point2<u32>,
-    font: &swash::FontRef,
-    pixel_data: &mut Vec<u8>,
-) {
-    let mut shape_context = ShapeContext::new();
-    let mut shaper = shape_context
-        .builder(*font)
-        .script(Script::Latin)
-        .size(FONT_SIZE)
-        .features(&[("dlig", 1)])
-        .build();
+fn set_buffer_text<'a>(buffer: &mut BorrowedWithFontSystem<'a, Buffer>) {
+    let attrs = Attrs::new();
+    let serif_attrs = attrs.family(Family::Serif);
+    let mono_attrs = attrs.family(Family::Monospace);
 
-    // We'll need the character map for our font
-    let charmap = font.charmap();
-    // And some storage for the cluster we're working with
-    let mut cluster = CharCluster::new();
-    // Now we build a cluster parser which takes a script and
-    // an iterator that yields a Token per character
-    let mut parser = Parser::new(
-        Script::Latin,
-        text_content.char_indices().map(|(i, ch)| Token {
-            // The character
-            ch,
-            // Offset of the character in code units
-            offset: i as u32,
-            // Length of the character in code units
-            len: ch.len_utf8() as u8,
-            // Character information
-            info: ch.into(),
-            // Pass through user data
-            data: 0,
-        }),
-    );
-    // Loop over all of the clusters
-    while parser.next(&mut cluster) {
-        // info!("Handling cluster: {:?}", cluster.chars());
+    let spans: &[(&str, Attrs)] = &[
+        (
+            "Document title\n\n",
+            attrs.metrics(Metrics::relative(64.0, 1.2)),
+        ),
+        (LOREM_IPSUM, attrs.metrics(Metrics::relative(24.0, 1.2))),
+        ("Sans-Serif Normal ", attrs),
+        ("Sans-Serif Bold ", attrs.weight(Weight::BOLD)),
+        ("Sans-Serif Italic ", attrs.style(Style::Italic)),
+        ("Serif Normal ", serif_attrs),
+        ("Serif Bold ", serif_attrs.weight(Weight::BOLD)),
+        ("Serif Italic ", serif_attrs.style(Style::Italic)),
+        (
+            "Serif Bold Italic\n",
+            serif_attrs.weight(Weight::BOLD).style(Style::Italic),
+        ),
+        ("Mono Normal ", mono_attrs),
+        ("Mono Bold ", mono_attrs.weight(Weight::BOLD)),
+        ("Mono Italic ", mono_attrs.style(Style::Italic)),
+        (
+            "Mono Bold Italic\n",
+            mono_attrs.weight(Weight::BOLD).style(Style::Italic),
+        ),
+        ("สวัสดีครับ\n", attrs.color(Color::rgb(0xFF, 0x00, 0x00))),
+    ];
 
-        // Map all of the characters in the cluster
-        // to nominal glyph identifiers
-        cluster.map(|ch| charmap.map(ch));
-        // Add the cluster to the shaper
-        shaper.add_cluster(&cluster);
-    }
-
-    let mut scale_context = ScaleContext::new();
-
-    let mut run_offset_x: f32 = 0.0;
-
-    shaper.shape_with(|cluster| {
-        info!("Rendering a cluster...");
-
-        cluster.glyphs.iter().for_each(|glyph| {
-            info!("Rendering a glyph...");
-
-            let mut scaler = scale_context
-                .builder(*font)
-                .size(FONT_SIZE)
-                .hint(true)
-                .build();
-            let image = Render::new(&[
-                Source::ColorOutline(0),
-                Source::ColorBitmap(StrikeWith::BestFit),
-                Source::Outline,
-            ])
-            .format(Format::Subpixel)
-            .render(&mut scaler, glyph.id)
-            .unwrap();
-
-            let glyph_image_data = image.data.as_slice();
-
-            info!(
-                "Image placement: top {} height {}",
-                image.placement.top, image.placement.height
-            );
-
-            let glyph_x_min: i32 = image.placement.left;
-            let glyph_x_max: i32 = image.placement.left + image.placement.width as i32;
-            let glyph_y_min: i32 = image.placement.top;
-            let glyph_y_max: i32 = image.placement.top + image.placement.height as i32;
-
-            for glyph_x in glyph_x_min..glyph_x_max {
-                for glyph_y in glyph_y_min..glyph_y_max {
-                    // Get the value of this pixel
-                    let glyph_byte_offset = (glyph_x - glyph_x_min
-                        + (glyph_y - glyph_y_min) * image.placement.width as i32)
-                        * 4;
-
-                    if glyph_byte_offset < 0 {
-                        error!("Glyph byte offset is less than 0, cannot lookup pixel data");
-                        panic!("Invalid glyph byte offset");
-                    }
-
-                    let glyph_byte_offset = glyph_byte_offset as usize;
-
-                    let pixel_r = 255 - glyph_image_data[glyph_byte_offset];
-                    let pixel_g = 255 - glyph_image_data[glyph_byte_offset + 1];
-                    let pixel_b = 255 - glyph_image_data[glyph_byte_offset + 2];
-
-                    if pixel_r == 255 && pixel_g == 255 && pixel_b == 255 {
-                        // Blank pixel, skip
-                        continue;
-                    }
-
-                    // Copy the value onto the canvas, at an offset position
-                    let canvas_x = glyph_x + text_pos.x as i32 + run_offset_x.round() as i32; // TODO: I think we might be missing a glyph offset
-                    let canvas_y = glyph_y + text_pos.y as i32 - (glyph_y_min * 2);
-
-                    let canvas_byte_offset = (canvas_y * (CANVAS_WIDTH as i32) + canvas_x) * 4;
-
-                    if canvas_byte_offset < 0 {
-                        error!("canvas byte offset is less than 0, cannot set pixel data");
-                        panic!("Invalid canvas byte offset");
-                    }
-
-                    let canvas_byte_offset = canvas_byte_offset as usize;
-
-                    pixel_data[canvas_byte_offset] = pixel_r;
-                    pixel_data[canvas_byte_offset + 1] = pixel_g;
-                    pixel_data[canvas_byte_offset + 2] = pixel_b;
-                }
-            }
-
-            run_offset_x += glyph.advance.round();
-        });
-    });
+    buffer.set_rich_text(spans.iter().copied(), attrs, Shaping::Advanced);
 }
