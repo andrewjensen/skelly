@@ -127,21 +127,32 @@ fn set_buffer_text<'a>(buffer: &mut BorrowedWithFontSystem<'a, Buffer>, document
 
     let attrs_paragraph = attrs_default.metrics(Metrics::relative(32.0, 1.2));
 
-    let attrs_heading = attrs_default
-        .metrics(Metrics::relative(64.0, 1.2))
-        .weight(Weight::BOLD)
-        .family(Family::Monospace);
+    let attrs_heading = attrs_default.weight(Weight::BOLD).family(Family::Monospace);
+
+    let attrs_h1 = attrs_heading.metrics(Metrics::relative(64.0, 1.2));
+    let attrs_h2 = attrs_heading.metrics(Metrics::relative(48.0, 1.2));
+    let attrs_h3 = attrs_heading.metrics(Metrics::relative(40.0, 1.2));
+    let attrs_h4 = attrs_heading.metrics(Metrics::relative(32.0, 1.2));
+    let attrs_h5 = attrs_heading.metrics(Metrics::relative(32.0, 1.2));
+    let attrs_h6 = attrs_heading.metrics(Metrics::relative(32.0, 1.2));
 
     let mut spans: Vec<(&str, Attrs)> = Vec::new();
 
     for block in document.blocks.iter() {
         match block {
-            Block::Heading {
-                level: _level,
-                content,
-            } => {
-                spans.push((content, attrs_heading));
-                spans.push(("\n\n", attrs_heading));
+            Block::Heading { level, content } => {
+                let attrs_this_heading = match level {
+                    1 => attrs_h1,
+                    2 => attrs_h2,
+                    3 => attrs_h3,
+                    4 => attrs_h4,
+                    5 => attrs_h5,
+                    6 => attrs_h6,
+                    _ => unreachable!("Invalid heading level"),
+                };
+
+                spans.push((content, attrs_this_heading));
+                spans.push(("\n\n", attrs_this_heading));
             }
             Block::Paragraph { content } => {
                 spans.push((content, attrs_paragraph));
