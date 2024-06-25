@@ -2,7 +2,8 @@ use cosmic_text::BorrowedWithFontSystem;
 use cosmic_text::Color;
 use cosmic_text::Shaping;
 use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, SwashCache, Weight};
-use image::{ImageBuffer, RgbaImage};
+use image::Pixel;
+use image::{Rgba, RgbaImage};
 use log::{error, info};
 use std::env;
 use std::process;
@@ -50,11 +51,12 @@ fn main() {
         process::exit(1);
     }
     let document = parse_result.unwrap();
-
     // info!("Parsed document: {:#?}", document);
 
-    // Create a vector of pixel data (RGB format)
-    let mut pixel_data = vec![255; CANVAS_WIDTH * CANVAS_HEIGHT * 4]; // Initialize with white
+    let mut pixel_data = RgbaImage::new(CANVAS_WIDTH as u32, CANVAS_HEIGHT as u32);
+    pixel_data.pixels_mut().for_each(|pixel| {
+        pixel.0 = [0xFF, 0xFF, 0xFF, 0xFF];
+    });
 
     info!("Creating cosmic-text buffer...");
 
@@ -99,34 +101,19 @@ fn main() {
                 }
 
                 let (fg_r, fg_g, fg_b, fg_a) = color.as_rgba_tuple();
-                let alpha: f32 = fg_a as f32 / 255.0;
+                let fg = Rgba([fg_r, fg_g, fg_b, fg_a]);
 
-                let idx = (canvas_y * (CANVAS_WIDTH as i32) + canvas_x) * 4;
-                let idx = idx as usize;
-
-                let bg_r = pixel_data[idx];
-                let bg_g = pixel_data[idx + 1];
-                let bg_b = pixel_data[idx + 2];
-
-                let result_r = (fg_r as f32 * alpha + bg_r as f32 * (1.0 - alpha)) as u8;
-                let result_g = (fg_g as f32 * alpha + bg_g as f32 * (1.0 - alpha)) as u8;
-                let result_b = (fg_b as f32 * alpha + bg_b as f32 * (1.0 - alpha)) as u8;
-
-                pixel_data[idx] = result_r;
-                pixel_data[idx + 1] = result_g;
-                pixel_data[idx + 2] = result_b;
+                let bg = pixel_data.get_pixel(canvas_x as u32, canvas_y as u32);
+                let mut result = bg.clone();
+                result.blend(&fg);
+                pixel_data.put_pixel(canvas_x as u32, canvas_y as u32, result);
             }
         }
     });
 
     info!("Saving image...");
-
-    let img: RgbaImage =
-        ImageBuffer::from_vec(CANVAS_WIDTH as u32, CANVAS_HEIGHT as u32, pixel_data)
-            .expect("Failed to create image buffer");
-
-    // Save the image as a PNG file
-    img.save("./output/screen.png")
+    pixel_data
+        .save("./output/screen.png")
         .expect("Failed to save image");
 
     info!("Done");
