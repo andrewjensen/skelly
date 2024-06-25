@@ -18,8 +18,6 @@ const CANVAS_HEIGHT: usize = 1872;
 const CANVAS_MARGIN_X: usize = 100;
 const CANVAS_MARGIN_TOP: usize = 200;
 
-// const FILE_FONT: &str = "./assets/Roboto-Regular.ttf";
-
 fn main() {
     env_logger::init();
 
@@ -131,13 +129,9 @@ fn main() {
 
 fn set_buffer_text<'a>(buffer: &mut BorrowedWithFontSystem<'a, Buffer>, document: &Document) {
     let attrs_default = Attrs::new();
-    // let serif_attrs = attrs.family(Family::Serif);
-    // let mono_attrs = attrs.family(Family::Monospace);
-
     let attrs_paragraph = attrs_default.metrics(Metrics::relative(32.0, 1.2));
 
     let attrs_heading = attrs_default.weight(Weight::BOLD).family(Family::Monospace);
-
     let attrs_h1 = attrs_heading.metrics(Metrics::relative(64.0, 1.2));
     let attrs_h2 = attrs_heading.metrics(Metrics::relative(48.0, 1.2));
     let attrs_h3 = attrs_heading.metrics(Metrics::relative(40.0, 1.2));
@@ -173,32 +167,6 @@ fn set_buffer_text<'a>(buffer: &mut BorrowedWithFontSystem<'a, Buffer>, document
             }
         }
     }
-
-    // let spans: &[(&str, Attrs)] = &[
-    //     (
-    //         "Document title\n\n",
-    //         attrs.metrics(Metrics::relative(64.0, 1.2)),
-    //     ),
-    //     // (LOREM_IPSUM, attrs.metrics(Metrics::relative(24.0, 1.2))),
-    //     ("Sans-Serif Normal ", attrs),
-    //     ("Sans-Serif Bold ", attrs.weight(Weight::BOLD)),
-    //     ("Sans-Serif Italic ", attrs.style(Style::Italic)),
-    //     ("Serif Normal ", serif_attrs),
-    //     ("Serif Bold ", serif_attrs.weight(Weight::BOLD)),
-    //     ("Serif Italic ", serif_attrs.style(Style::Italic)),
-    //     (
-    //         "Serif Bold Italic\n",
-    //         serif_attrs.weight(Weight::BOLD).style(Style::Italic),
-    //     ),
-    //     ("Mono Normal ", mono_attrs),
-    //     ("Mono Bold ", mono_attrs.weight(Weight::BOLD)),
-    //     ("Mono Italic ", mono_attrs.style(Style::Italic)),
-    //     (
-    //         "Mono Bold Italic\n",
-    //         mono_attrs.weight(Weight::BOLD).style(Style::Italic),
-    //     ),
-    //     ("สวัสดีครับ\n", attrs.color(Color::rgb(0xFF, 0x00, 0x00))),
-    // ];
 
     buffer.set_rich_text(spans.iter().copied(), attrs_default, Shaping::Advanced);
 }
