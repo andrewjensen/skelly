@@ -1,13 +1,18 @@
 use cgmath::Point2;
-use cosmic_text::{Attrs, Buffer, Color, Family, FontSystem, Metrics, Shaping, SwashCache, Weight};
+use cosmic_text::{
+    Attrs, Buffer, Color, Family, FontSystem, LayoutRun, Metrics, Shaping, SwashCache, Weight,
+};
 use image::{Pixel, Rgba, RgbaImage};
 use log::{error, info};
 use std::env;
 use std::process;
 
+mod debugging;
+mod layout;
 mod network;
 mod parsing;
 
+use crate::layout::split_runs_into_pages;
 use crate::network::{fetch_webpage, ContentType};
 use crate::parsing::{parse_webpage, Block, Document};
 
@@ -15,7 +20,7 @@ const CANVAS_WIDTH: u32 = 1404;
 const CANVAS_HEIGHT: u32 = 1872;
 const CANVAS_MARGIN_X: u32 = 100;
 const CANVAS_MARGIN_TOP: u32 = 200;
-const CANVAS_MARGIN_BOTTOM: u32 = 100;
+const CANVAS_MARGIN_BOTTOM: u32 = 400;
 
 fn main() {
     env_logger::init();
@@ -51,11 +56,6 @@ fn main() {
     let document = parse_result.unwrap();
     // info!("Parsed document: {:#?}", document);
 
-    let mut pixel_data = RgbaImage::new(CANVAS_WIDTH, CANVAS_HEIGHT);
-    pixel_data.pixels_mut().for_each(|pixel| {
-        pixel.0 = [0xFF, 0xFF, 0xFF, 0xFF];
-    });
-
     info!("Creating cosmic-text buffer...");
 
     let mut font_system = FontSystem::new();
@@ -65,8 +65,11 @@ fn main() {
     let metrics = Metrics::new(32.0, 44.0);
     let mut buffer = Buffer::new_empty(metrics.scale(display_scale));
 
+    let content_height = CANVAS_HEIGHT - CANVAS_MARGIN_TOP - CANVAS_MARGIN_BOTTOM;
+
     let buffer_width = CANVAS_WIDTH - CANVAS_MARGIN_X * 2;
-    let buffer_height = CANVAS_HEIGHT - CANVAS_MARGIN_TOP;
+    let buffer_height = i32::MAX; // No limit on height so the buffer will calculate everything
+
     buffer.set_size(
         &mut font_system,
         Some(buffer_width as f32),
@@ -77,66 +80,79 @@ fn main() {
 
     set_buffer_text(&mut buffer, &mut font_system, &document);
 
-    let box_top_left = Point2::<u32> {
-        x: CANVAS_MARGIN_X,
-        y: CANVAS_MARGIN_TOP,
-    };
-    let box_bottom_right = Point2::<u32> {
-        x: CANVAS_WIDTH - CANVAS_MARGIN_X,
-        y: CANVAS_HEIGHT - CANVAS_MARGIN_BOTTOM,
-    };
-    draw_box_border(
-        box_top_left,
-        box_bottom_right,
-        Rgba([0xFF, 0x00, 0x00, 0xFF]),
-        &mut pixel_data,
-    );
+    info!("Splitting text into pages...");
+    let all_runs: Vec<LayoutRun> = buffer.layout_runs().collect();
+    let all_runs_refs: Vec<&LayoutRun> = all_runs.iter().collect();
+    let pages = split_runs_into_pages(all_runs_refs, content_height);
+    info!("Split into {} total pages", pages.len());
 
-    info!("Drawing text...");
+    info!("Rendering pages...");
 
-    draw_buffer(
-        &buffer,
-        &mut font_system,
-        &mut swash_cache,
-        text_color,
-        |x, y, w, h, color| {
-            if w > 1 || h > 1 {
-                info!("Drawing a rectangle with bigger width/height");
-            }
+    for (page_idx, page) in pages.iter().enumerate() {
+        info!("  Page {}...", page_idx);
 
-            let buffer_max_y = CANVAS_HEIGHT - CANVAS_MARGIN_TOP - CANVAS_MARGIN_BOTTOM;
+        let mut pixel_data = RgbaImage::new(CANVAS_WIDTH, CANVAS_HEIGHT);
+        pixel_data.pixels_mut().for_each(|pixel| {
+            pixel.0 = [0xFF, 0xFF, 0xFF, 0xFF];
+        });
 
-            for buffer_x in x..(x + w as i32) {
-                for buffer_y in y..(y + h as i32) {
-                    let canvas_x = buffer_x + CANVAS_MARGIN_X as i32;
-                    let canvas_y = buffer_y + CANVAS_MARGIN_TOP as i32;
-
-                    if canvas_x < 0 || canvas_x >= CANVAS_WIDTH as i32 {
-                        continue;
-                    }
-                    if canvas_y < 0 || canvas_y >= buffer_max_y as i32 {
-                        continue;
-                    }
-
-                    let canvas_x = canvas_x as u32;
-                    let canvas_y = canvas_y as u32;
-
-                    let (fg_r, fg_g, fg_b, fg_a) = color.as_rgba_tuple();
-                    let fg = Rgba([fg_r, fg_g, fg_b, fg_a]);
-
-                    let bg = pixel_data.get_pixel(canvas_x, canvas_y);
-                    let mut result = bg.clone();
-                    result.blend(&fg);
-                    pixel_data.put_pixel(canvas_x, canvas_y, result);
+        draw_layout_runs(
+            &page.runs,
+            (page.offset * -1.0).round() as i32,
+            &mut font_system,
+            &mut swash_cache,
+            text_color,
+            |x, y, w, h, color| {
+                if w > 1 || h > 1 {
+                    info!("Drawing a rectangle with bigger width/height");
                 }
-            }
-        },
-    );
 
-    info!("Saving image...");
-    pixel_data
-        .save("./output/screen.png")
-        .expect("Failed to save image");
+                for buffer_x in x..(x + w as i32) {
+                    for buffer_y in y..(y + h as i32) {
+                        let canvas_x = buffer_x + CANVAS_MARGIN_X as i32;
+                        let canvas_y = buffer_y + CANVAS_MARGIN_TOP as i32;
+
+                        if canvas_x < 0 || canvas_x >= CANVAS_WIDTH as i32 {
+                            continue;
+                        }
+                        if canvas_y < 0 || canvas_y >= CANVAS_HEIGHT as i32 {
+                            continue;
+                        }
+
+                        let canvas_x = canvas_x as u32;
+                        let canvas_y = canvas_y as u32;
+
+                        let (fg_r, fg_g, fg_b, fg_a) = color.as_rgba_tuple();
+                        let fg = Rgba([fg_r, fg_g, fg_b, fg_a]);
+
+                        let bg = pixel_data.get_pixel(canvas_x, canvas_y);
+                        let mut result = bg.clone();
+                        result.blend(&fg);
+                        pixel_data.put_pixel(canvas_x, canvas_y, result);
+                    }
+                }
+            },
+        );
+
+        let box_top_left = Point2::<u32> {
+            x: CANVAS_MARGIN_X,
+            y: CANVAS_MARGIN_TOP,
+        };
+        let box_bottom_right = Point2::<u32> {
+            x: CANVAS_WIDTH - CANVAS_MARGIN_X,
+            y: CANVAS_HEIGHT - CANVAS_MARGIN_BOTTOM,
+        };
+        draw_box_border(
+            box_top_left,
+            box_bottom_right,
+            Rgba([0xFF, 0x00, 0x00, 0xFF]),
+            &mut pixel_data,
+        );
+
+        let file_path = format!("./output/page-{}.png", page_idx);
+
+        pixel_data.save(&file_path).expect("Failed to save image");
+    }
 
     info!("Done");
 }
@@ -209,22 +225,23 @@ fn set_buffer_text<'a>(buffer: &mut Buffer, font_system: &mut FontSystem, docume
     );
 }
 
-pub fn draw_buffer<F>(
-    buffer: &Buffer,
+pub fn draw_layout_runs<F>(
+    runs: &Vec<&LayoutRun>,
+    offset_y: i32,
     font_system: &mut FontSystem,
     cache: &mut SwashCache,
-    color: Color,
+    default_color: Color,
     mut f: F,
 ) where
     F: FnMut(i32, i32, u32, u32, Color),
 {
-    for run in buffer.layout_runs() {
+    for run in runs.iter() {
         for glyph in run.glyphs.iter() {
             let physical_glyph = glyph.physical((0., 0.), 1.0);
 
             let glyph_color = match glyph.color_opt {
                 Some(some) => some,
-                None => color,
+                None => default_color,
             };
 
             cache.with_pixels(
@@ -234,7 +251,7 @@ pub fn draw_buffer<F>(
                 |x, y, color| {
                     f(
                         physical_glyph.x + x,
-                        run.line_y as i32 + physical_glyph.y + y,
+                        offset_y + run.line_y as i32 + physical_glyph.y + y,
                         1,
                         1,
                         color,
