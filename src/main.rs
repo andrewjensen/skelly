@@ -102,35 +102,27 @@ fn main() {
             &mut font_system,
             &mut swash_cache,
             text_color,
-            |x, y, w, h, color| {
-                if w > 1 || h > 1 {
-                    info!("Drawing a rectangle with bigger width/height");
+            |buffer_x, buffer_y, color| {
+                let canvas_x = buffer_x + CANVAS_MARGIN_X as i32;
+                let canvas_y = buffer_y + CANVAS_MARGIN_TOP as i32;
+
+                if canvas_x < 0 || canvas_x >= CANVAS_WIDTH as i32 {
+                    return;
+                }
+                if canvas_y < 0 || canvas_y >= CANVAS_HEIGHT as i32 {
+                    return;
                 }
 
-                for buffer_x in x..(x + w as i32) {
-                    for buffer_y in y..(y + h as i32) {
-                        let canvas_x = buffer_x + CANVAS_MARGIN_X as i32;
-                        let canvas_y = buffer_y + CANVAS_MARGIN_TOP as i32;
+                let canvas_x = canvas_x as u32;
+                let canvas_y = canvas_y as u32;
 
-                        if canvas_x < 0 || canvas_x >= CANVAS_WIDTH as i32 {
-                            continue;
-                        }
-                        if canvas_y < 0 || canvas_y >= CANVAS_HEIGHT as i32 {
-                            continue;
-                        }
+                let (fg_r, fg_g, fg_b, fg_a) = color.as_rgba_tuple();
+                let fg = Rgba([fg_r, fg_g, fg_b, fg_a]);
 
-                        let canvas_x = canvas_x as u32;
-                        let canvas_y = canvas_y as u32;
-
-                        let (fg_r, fg_g, fg_b, fg_a) = color.as_rgba_tuple();
-                        let fg = Rgba([fg_r, fg_g, fg_b, fg_a]);
-
-                        let bg = pixel_data.get_pixel(canvas_x, canvas_y);
-                        let mut result = bg.clone();
-                        result.blend(&fg);
-                        pixel_data.put_pixel(canvas_x, canvas_y, result);
-                    }
-                }
+                let bg = pixel_data.get_pixel(canvas_x, canvas_y);
+                let mut result = bg.clone();
+                result.blend(&fg);
+                pixel_data.put_pixel(canvas_x, canvas_y, result);
             },
         );
 
@@ -233,7 +225,7 @@ pub fn draw_layout_runs<F>(
     default_color: Color,
     mut f: F,
 ) where
-    F: FnMut(i32, i32, u32, u32, Color),
+    F: FnMut(i32, i32, Color),
 {
     for run in runs.iter() {
         for glyph in run.glyphs.iter() {
@@ -252,8 +244,6 @@ pub fn draw_layout_runs<F>(
                     f(
                         physical_glyph.x + x,
                         offset_y + run.line_y as i32 + physical_glyph.y + y,
-                        1,
-                        1,
                         color,
                     );
                 },
