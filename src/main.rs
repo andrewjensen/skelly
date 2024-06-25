@@ -1,10 +1,6 @@
 use cgmath::Point2;
-use cosmic_text::BorrowedWithFontSystem;
-use cosmic_text::Color;
-use cosmic_text::Shaping;
-use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, SwashCache, Weight};
-use image::Pixel;
-use image::{Rgba, RgbaImage};
+use cosmic_text::{Attrs, Buffer, Color, Family, FontSystem, Metrics, Shaping, SwashCache, Weight};
+use image::{Pixel, Rgba, RgbaImage};
 use log::{error, info};
 use std::env;
 use std::process;
@@ -77,11 +73,9 @@ fn main() {
         Some(buffer_height as f32),
     );
 
-    let mut buffer = buffer.borrow_with(&mut font_system);
-
     let text_color = Color::rgba(0x34, 0x34, 0x34, 0xFF);
 
-    set_buffer_text(&mut buffer, &document);
+    set_buffer_text(&mut buffer, &mut font_system, &document);
 
     let box_top_left = Point2::<u32> {
         x: CANVAS_MARGIN_X,
@@ -100,38 +94,44 @@ fn main() {
 
     info!("Drawing text...");
 
-    buffer.draw(&mut swash_cache, text_color, |x, y, w, h, color| {
-        if w > 1 || h > 1 {
-            info!("Drawing a rectangle with bigger width/height");
-        }
-
-        let buffer_max_y = CANVAS_HEIGHT - CANVAS_MARGIN_TOP - CANVAS_MARGIN_BOTTOM;
-
-        for buffer_x in x..(x + w as i32) {
-            for buffer_y in y..(y + h as i32) {
-                let canvas_x = buffer_x + CANVAS_MARGIN_X as i32;
-                let canvas_y = buffer_y + CANVAS_MARGIN_TOP as i32;
-
-                if canvas_x < 0 || canvas_x >= CANVAS_WIDTH as i32 {
-                    continue;
-                }
-                if canvas_y < 0 || canvas_y >= buffer_max_y as i32 {
-                    continue;
-                }
-
-                let canvas_x = canvas_x as u32;
-                let canvas_y = canvas_y as u32;
-
-                let (fg_r, fg_g, fg_b, fg_a) = color.as_rgba_tuple();
-                let fg = Rgba([fg_r, fg_g, fg_b, fg_a]);
-
-                let bg = pixel_data.get_pixel(canvas_x, canvas_y);
-                let mut result = bg.clone();
-                result.blend(&fg);
-                pixel_data.put_pixel(canvas_x, canvas_y, result);
+    draw_buffer(
+        &buffer,
+        &mut font_system,
+        &mut swash_cache,
+        text_color,
+        |x, y, w, h, color| {
+            if w > 1 || h > 1 {
+                info!("Drawing a rectangle with bigger width/height");
             }
-        }
-    });
+
+            let buffer_max_y = CANVAS_HEIGHT - CANVAS_MARGIN_TOP - CANVAS_MARGIN_BOTTOM;
+
+            for buffer_x in x..(x + w as i32) {
+                for buffer_y in y..(y + h as i32) {
+                    let canvas_x = buffer_x + CANVAS_MARGIN_X as i32;
+                    let canvas_y = buffer_y + CANVAS_MARGIN_TOP as i32;
+
+                    if canvas_x < 0 || canvas_x >= CANVAS_WIDTH as i32 {
+                        continue;
+                    }
+                    if canvas_y < 0 || canvas_y >= buffer_max_y as i32 {
+                        continue;
+                    }
+
+                    let canvas_x = canvas_x as u32;
+                    let canvas_y = canvas_y as u32;
+
+                    let (fg_r, fg_g, fg_b, fg_a) = color.as_rgba_tuple();
+                    let fg = Rgba([fg_r, fg_g, fg_b, fg_a]);
+
+                    let bg = pixel_data.get_pixel(canvas_x, canvas_y);
+                    let mut result = bg.clone();
+                    result.blend(&fg);
+                    pixel_data.put_pixel(canvas_x, canvas_y, result);
+                }
+            }
+        },
+    );
 
     info!("Saving image...");
     pixel_data
@@ -160,7 +160,7 @@ fn draw_box_border(
     }
 }
 
-fn set_buffer_text<'a>(buffer: &mut BorrowedWithFontSystem<'a, Buffer>, document: &Document) {
+fn set_buffer_text<'a>(buffer: &mut Buffer, font_system: &mut FontSystem, document: &Document) {
     let attrs_default = Attrs::new();
     let attrs_paragraph = attrs_default.metrics(Metrics::relative(32.0, 1.2));
 
@@ -201,5 +201,46 @@ fn set_buffer_text<'a>(buffer: &mut BorrowedWithFontSystem<'a, Buffer>, document
         }
     }
 
-    buffer.set_rich_text(spans.iter().copied(), attrs_default, Shaping::Advanced);
+    buffer.set_rich_text(
+        font_system,
+        spans.iter().copied(),
+        attrs_default,
+        Shaping::Advanced,
+    );
+}
+
+pub fn draw_buffer<F>(
+    buffer: &Buffer,
+    font_system: &mut FontSystem,
+    cache: &mut SwashCache,
+    color: Color,
+    mut f: F,
+) where
+    F: FnMut(i32, i32, u32, u32, Color),
+{
+    for run in buffer.layout_runs() {
+        for glyph in run.glyphs.iter() {
+            let physical_glyph = glyph.physical((0., 0.), 1.0);
+
+            let glyph_color = match glyph.color_opt {
+                Some(some) => some,
+                None => color,
+            };
+
+            cache.with_pixels(
+                font_system,
+                physical_glyph.cache_key,
+                glyph_color,
+                |x, y, color| {
+                    f(
+                        physical_glyph.x + x,
+                        run.line_y as i32 + physical_glyph.y + y,
+                        1,
+                        1,
+                        color,
+                    );
+                },
+            );
+        }
+    }
 }
