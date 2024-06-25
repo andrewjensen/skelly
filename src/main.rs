@@ -10,7 +10,7 @@ use std::process;
 mod network;
 mod parsing;
 
-use crate::network::fetch_webpage;
+use crate::network::{fetch_webpage, ContentType};
 use crate::parsing::{parse_webpage, Block, Document};
 
 const CANVAS_WIDTH: usize = 1404;
@@ -34,10 +34,19 @@ fn main() {
     info!("The URL argument is: {}", url);
 
     info!("Fetching webpage...");
-    let page_html = fetch_webpage(url);
+    let fetch_result = fetch_webpage(url);
+    if let Err(err) = fetch_result {
+        error!("Failed to fetch webpage: {}", err);
+        process::exit(1);
+    }
+    let page = fetch_result.unwrap();
+    if let ContentType::Other(content_type) = page.content_type {
+        error!("Expected HTML content type, got: {:?}", content_type);
+        process::exit(1);
+    }
 
     info!("Parsing...");
-    let document = parse_webpage(&page_html);
+    let document = parse_webpage(&page.content);
 
     // info!("Parsed document: {:#?}", document);
 

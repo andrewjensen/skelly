@@ -973,6 +973,7 @@ dependencies = [
  "log",
  "once_cell",
  "reqwest",
+ "thiserror",
  "tree-sitter",
  "tree-sitter-markdown",
 ]
