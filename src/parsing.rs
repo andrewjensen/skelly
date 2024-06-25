@@ -1,3 +1,4 @@
+use thiserror::Error;
 use tree_sitter::{Node, Parser};
 
 #[derive(Debug)]
@@ -18,10 +19,26 @@ pub struct Link {
     pub text: String,
 }
 
-pub fn parse_webpage(page_html: &str) -> Document {
+#[derive(Debug, Error)]
+pub enum ParseError {
+    #[error("HTMD error")]
+    HtmdError,
+
+    #[error("TreeSitter error")]
+    TreeSitterError,
+
+    #[error("Encountered unexpected node kind: {0}")]
+    UnexpectedNodeKind(String),
+}
+
+pub fn parse_webpage(page_html: &str) -> Result<Document, ParseError> {
     // HACK: we're parsing from HTML to markdown, then parsing that markdown
     // We should eventually consolidate and just work with a single intermediate representation
-    let page_markdown = htmd::convert(page_html).unwrap();
+    let page_markdown = htmd::convert(page_html);
+    if page_markdown.is_err() {
+        return Err(ParseError::HtmdError);
+    }
+    let page_markdown = page_markdown.unwrap();
     let source = page_markdown.as_bytes();
 
     // info!("Page content as markdown: {}", page_markdown);
@@ -33,7 +50,11 @@ pub fn parse_webpage(page_html: &str) -> Document {
         .set_language(markdown_language)
         .expect("Error loading Markdown grammar");
 
-    let tree = parser.parse(source, None).unwrap();
+    let tree_sitter_parse_result = parser.parse(source, None);
+    if tree_sitter_parse_result.is_none() {
+        return Err(ParseError::TreeSitterError);
+    }
+    let tree = tree_sitter_parse_result.unwrap();
 
     // info!("Tree: {}", tree.root_node().to_sexp());
 
@@ -47,55 +68,67 @@ pub fn parse_webpage(page_html: &str) -> Document {
 
     let mut cursor = node_doc.walk();
     for node_block in node_doc.named_children(&mut cursor) {
-        match node_block.kind() {
-            "atx_heading" => {
-                blocks.push(parse_heading(&node_block, &source));
-            }
-            "paragraph" => {
-                blocks.push(parse_paragraph(&node_block, &source));
-            }
-            "tight_list" => {
-                blocks.push(Block::List);
-            }
-            _ => {
-                panic!("Unexpected block kind: {}", node_block.kind());
-            }
+        let block_result = parse_block(&node_block, source);
+        if let Err(block_error) = block_result {
+            return Err(block_error);
         }
+        let block = block_result.unwrap();
+        blocks.push(block);
     }
 
-    Document { blocks }
+    Ok(Document { blocks })
 }
 
-fn parse_heading(node_heading: &Node, source: &[u8]) -> Block {
+fn parse_block(node_block: &Node, source: &[u8]) -> Result<Block, ParseError> {
+    match node_block.kind() {
+        "atx_heading" => parse_heading(node_block, source),
+        "paragraph" => parse_paragraph(node_block, source),
+        "tight_list" => Ok(Block::List),
+        "loose_list" => Ok(Block::List),
+        _ => Err(ParseError::UnexpectedNodeKind(
+            node_block.kind().to_string(),
+        )),
+    }
+}
+
+fn parse_heading(node_heading: &Node, source: &[u8]) -> Result<Block, ParseError> {
     let mut cursor = node_heading.walk();
 
     cursor.goto_first_child();
 
     let heading_level_marker = cursor.node().kind();
     let level = match heading_level_marker {
-        "atx_h1_marker" => 1,
-        "atx_h2_marker" => 2,
-        "atx_h3_marker" => 3,
-        "atx_h4_marker" => 4,
-        "atx_h5_marker" => 5,
-        "atx_h6_marker" => 6,
-        _ => panic!("Unexpected heading marker kind: {}", heading_level_marker),
+        "atx_h1_marker" => Some(1),
+        "atx_h2_marker" => Some(2),
+        "atx_h3_marker" => Some(3),
+        "atx_h4_marker" => Some(4),
+        "atx_h5_marker" => Some(5),
+        "atx_h6_marker" => Some(6),
+        _ => None,
     };
+    if level.is_none() {
+        return Err(ParseError::UnexpectedNodeKind(
+            heading_level_marker.to_string(),
+        ));
+    }
+    let level = level.unwrap();
 
     cursor.goto_next_sibling();
     if cursor.node().kind() != "heading_content" {
-        panic!("Expected heading content");
+        return Err(ParseError::UnexpectedNodeKind(
+            cursor.node().kind().to_string(),
+        ));
     }
     let node_heading_content = cursor.node();
     let content = temp_squash_block_text(&node_heading_content, source);
 
-    Block::Heading { level, content }
+    Ok(Block::Heading { level, content })
 }
 
-fn parse_paragraph(node_paragraph: &Node, source: &[u8]) -> Block {
-    Block::Paragraph {
+fn parse_paragraph(node_paragraph: &Node, source: &[u8]) -> Result<Block, ParseError> {
+    Ok(Block::Paragraph {
         content: temp_squash_block_text(node_paragraph, source),
-    }
+    })
 }
 
 fn temp_squash_block_text(node_parent: &Node, source: &[u8]) -> String {
@@ -123,7 +156,6 @@ fn temp_squash_block_text(node_parent: &Node, source: &[u8]) -> String {
                 content.push_str(&format!("**{}**", emphasized_text));
             }
             _ => {
-                // panic!("Unexpected item kind: {}", node_child.kind());
                 content.push_str(&format!("[TODO: handle node `{}`]", node_child.kind()));
             }
         }

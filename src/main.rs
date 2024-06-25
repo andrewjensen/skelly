@@ -44,7 +44,12 @@ fn main() {
     }
 
     info!("Parsing...");
-    let document = parse_webpage(&page.content);
+    let parse_result = parse_webpage(&page.content);
+    if let Err(err) = parse_result {
+        error!("Failed to parse webpage: {}", err);
+        process::exit(1);
+    }
+    let document = parse_result.unwrap();
 
     // info!("Parsed document: {:#?}", document);
 
