@@ -1,3 +1,4 @@
+use cgmath::Point2;
 use cosmic_text::BorrowedWithFontSystem;
 use cosmic_text::Color;
 use cosmic_text::Shaping;
@@ -14,10 +15,11 @@ mod parsing;
 use crate::network::{fetch_webpage, ContentType};
 use crate::parsing::{parse_webpage, Block, Document};
 
-const CANVAS_WIDTH: usize = 1404;
-const CANVAS_HEIGHT: usize = 1872;
-const CANVAS_MARGIN_X: usize = 100;
-const CANVAS_MARGIN_TOP: usize = 200;
+const CANVAS_WIDTH: u32 = 1404;
+const CANVAS_HEIGHT: u32 = 1872;
+const CANVAS_MARGIN_X: u32 = 100;
+const CANVAS_MARGIN_TOP: u32 = 200;
+const CANVAS_MARGIN_BOTTOM: u32 = 100;
 
 fn main() {
     env_logger::init();
@@ -53,7 +55,7 @@ fn main() {
     let document = parse_result.unwrap();
     // info!("Parsed document: {:#?}", document);
 
-    let mut pixel_data = RgbaImage::new(CANVAS_WIDTH as u32, CANVAS_HEIGHT as u32);
+    let mut pixel_data = RgbaImage::new(CANVAS_WIDTH, CANVAS_HEIGHT);
     pixel_data.pixels_mut().for_each(|pixel| {
         pixel.0 = [0xFF, 0xFF, 0xFF, 0xFF];
     });
@@ -81,12 +83,29 @@ fn main() {
 
     set_buffer_text(&mut buffer, &document);
 
+    let box_top_left = Point2::<u32> {
+        x: CANVAS_MARGIN_X,
+        y: CANVAS_MARGIN_TOP,
+    };
+    let box_bottom_right = Point2::<u32> {
+        x: CANVAS_WIDTH - CANVAS_MARGIN_X,
+        y: CANVAS_HEIGHT - CANVAS_MARGIN_BOTTOM,
+    };
+    draw_box_border(
+        box_top_left,
+        box_bottom_right,
+        Rgba([0xFF, 0x00, 0x00, 0xFF]),
+        &mut pixel_data,
+    );
+
     info!("Drawing text...");
 
     buffer.draw(&mut swash_cache, text_color, |x, y, w, h, color| {
         if w > 1 || h > 1 {
             info!("Drawing a rectangle with bigger width/height");
         }
+
+        let buffer_max_y = CANVAS_HEIGHT - CANVAS_MARGIN_TOP - CANVAS_MARGIN_BOTTOM;
 
         for buffer_x in x..(x + w as i32) {
             for buffer_y in y..(y + h as i32) {
@@ -96,17 +115,20 @@ fn main() {
                 if canvas_x < 0 || canvas_x >= CANVAS_WIDTH as i32 {
                     continue;
                 }
-                if canvas_y < 0 || canvas_y >= CANVAS_HEIGHT as i32 {
+                if canvas_y < 0 || canvas_y >= buffer_max_y as i32 {
                     continue;
                 }
+
+                let canvas_x = canvas_x as u32;
+                let canvas_y = canvas_y as u32;
 
                 let (fg_r, fg_g, fg_b, fg_a) = color.as_rgba_tuple();
                 let fg = Rgba([fg_r, fg_g, fg_b, fg_a]);
 
-                let bg = pixel_data.get_pixel(canvas_x as u32, canvas_y as u32);
+                let bg = pixel_data.get_pixel(canvas_x, canvas_y);
                 let mut result = bg.clone();
                 result.blend(&fg);
-                pixel_data.put_pixel(canvas_x as u32, canvas_y as u32, result);
+                pixel_data.put_pixel(canvas_x, canvas_y, result);
             }
         }
     });
@@ -117,6 +139,25 @@ fn main() {
         .expect("Failed to save image");
 
     info!("Done");
+}
+
+fn draw_box_border(
+    box_top_left: Point2<u32>,
+    box_bottom_right: Point2<u32>,
+    color: Rgba<u8>,
+    pixel_data: &mut RgbaImage,
+) {
+    // Top and bottom borders
+    for x in box_top_left.x..box_bottom_right.x {
+        pixel_data.put_pixel(x, box_top_left.y, color);
+        pixel_data.put_pixel(x, box_bottom_right.y, color);
+    }
+
+    // Left and right borders
+    for y in box_top_left.y..box_bottom_right.y {
+        pixel_data.put_pixel(box_top_left.x, y, color);
+        pixel_data.put_pixel(box_bottom_right.x, y, color);
+    }
 }
 
 fn set_buffer_text<'a>(buffer: &mut BorrowedWithFontSystem<'a, Buffer>, document: &Document) {
