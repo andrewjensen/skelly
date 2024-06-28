@@ -1,15 +1,15 @@
 use image::RgbaImage;
 
-#[cfg(target = "armv7-unknown-linux-musleabihf")]
+#[cfg(target_os = "linux")]
 mod remarkable_backend;
 
-#[cfg(target = "armv7-unknown-linux-musleabihf")]
+#[cfg(target_os = "linux")]
 use remarkable_backend::RemarkableBackend;
 
-#[cfg(not(target = "armv7-unknown-linux-musleabihf"))]
+#[cfg(target_os = "macos")]
 mod static_image_backend;
 
-#[cfg(not(target = "armv7-unknown-linux-musleabihf"))]
+#[cfg(target_os = "macos")]
 use static_image_backend::StaticImageBackend;
 
 pub trait AppBackend {
@@ -17,10 +17,10 @@ pub trait AppBackend {
 }
 
 pub fn get_app_backend() -> impl AppBackend {
-    #[cfg(target = "armv7-unknown-linux-musleabihf")]
+    #[cfg(target_os = "linux")]
     let backend = RemarkableBackend {};
 
-    #[cfg(not(target = "armv7-unknown-linux-musleabihf"))]
+    #[cfg(target_os = "macos")]
     let backend = StaticImageBackend {};
 
     backend

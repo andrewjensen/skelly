@@ -18,3 +18,11 @@ htmd = "0.1.2"
 tree-sitter = "0.19"
 tree-sitter-markdown = "0.7"
 thiserror = "1.0"
+
+# TODO: get this to properly conditionally compile
+# [target.armv7-unknown-linux-musleabihf.dependencies]
+libremarkable = { version = "0.6.2", default-features = false, features = [
+    "framebuffer",
+    "framebuffer-types",
+    "framebuffer-drawing",
+] }
