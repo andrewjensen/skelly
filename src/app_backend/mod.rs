@@ -1,15 +1,15 @@
 use image::RgbaImage;
 
-#[cfg(target_os = "linux")]
+#[cfg(feature = "remarkable")]
 mod remarkable_backend;
 
-#[cfg(target_os = "linux")]
+#[cfg(feature = "remarkable")]
 use remarkable_backend::RemarkableBackend;
 
-#[cfg(target_os = "macos")]
+#[cfg(feature = "static")]
 mod static_image_backend;
 
-#[cfg(target_os = "macos")]
+#[cfg(feature = "static")]
 use static_image_backend::StaticImageBackend;
 
 pub trait AppBackend {
@@ -17,10 +17,10 @@ pub trait AppBackend {
 }
 
 pub fn get_app_backend() -> impl AppBackend {
-    #[cfg(target_os = "linux")]
+    #[cfg(feature = "remarkable")]
     let backend = RemarkableBackend {};
 
-    #[cfg(target_os = "macos")]
+    #[cfg(feature = "static")]
     let backend = StaticImageBackend {};
 
     backend
