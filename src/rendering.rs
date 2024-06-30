@@ -10,6 +10,7 @@ use crate::parsing::{Block, Document};
 
 use crate::{
     CANVAS_HEIGHT, CANVAS_MARGIN_BOTTOM, CANVAS_MARGIN_TOP, CANVAS_MARGIN_X, CANVAS_WIDTH,
+    DEBUG_LAYOUT,
 };
 
 pub struct Renderer {
@@ -46,7 +47,8 @@ impl Renderer {
     pub fn render_document(&mut self, document: &Document) -> Vec<RgbaImage> {
         let content_height = CANVAS_HEIGHT - CANVAS_MARGIN_TOP - CANVAS_MARGIN_BOTTOM;
 
-        let text_color = Color::rgba(0x34, 0x34, 0x34, 0xFF);
+        // let text_color = Color::rgba(0x34, 0x34, 0x34, 0xFF);
+        let text_color = Color::rgba(0x00, 0x00, 0x00, 0xFF);
 
         self.set_buffer_text(&document);
 
@@ -97,20 +99,22 @@ impl Renderer {
                 },
             );
 
-            let box_top_left = Point2::<u32> {
-                x: CANVAS_MARGIN_X,
-                y: CANVAS_MARGIN_TOP,
-            };
-            let box_bottom_right = Point2::<u32> {
-                x: CANVAS_WIDTH - CANVAS_MARGIN_X,
-                y: CANVAS_HEIGHT - CANVAS_MARGIN_BOTTOM,
-            };
-            draw_box_border(
-                box_top_left,
-                box_bottom_right,
-                Rgba([0xFF, 0x00, 0x00, 0xFF]),
-                &mut page_canvas,
-            );
+            if DEBUG_LAYOUT {
+                let box_top_left = Point2::<u32> {
+                    x: CANVAS_MARGIN_X,
+                    y: CANVAS_MARGIN_TOP,
+                };
+                let box_bottom_right = Point2::<u32> {
+                    x: CANVAS_WIDTH - CANVAS_MARGIN_X,
+                    y: CANVAS_HEIGHT - CANVAS_MARGIN_BOTTOM,
+                };
+                draw_box_border(
+                    box_top_left,
+                    box_bottom_right,
+                    Rgba([0xFF, 0x00, 0x00, 0xFF]),
+                    &mut page_canvas,
+                );
+            }
 
             page_canvases.push(page_canvas);
         }

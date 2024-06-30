@@ -16,8 +16,9 @@ use crate::app_backend::get_app_backend;
 pub const CANVAS_WIDTH: u32 = 1404;
 pub const CANVAS_HEIGHT: u32 = 1872;
 pub const CANVAS_MARGIN_X: u32 = 100;
-pub const CANVAS_MARGIN_TOP: u32 = 200;
-pub const CANVAS_MARGIN_BOTTOM: u32 = 400;
+pub const CANVAS_MARGIN_TOP: u32 = 150;
+pub const CANVAS_MARGIN_BOTTOM: u32 = 150;
+pub const DEBUG_LAYOUT: bool = false;
 
 fn main() {
     env_logger::init();
