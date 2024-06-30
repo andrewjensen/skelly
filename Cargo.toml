@@ -23,6 +23,8 @@ libremarkable = { optional = true, version = "0.6.2", default-features = false, 
     "framebuffer",
     "framebuffer-types",
     "framebuffer-drawing",
+    "input",
+    "input-types",
 ] }
 
 [features]

@@ -2,9 +2,10 @@ use cgmath::Point2;
 use image::RgbaImage;
 use libremarkable::framebuffer::common::*;
 use libremarkable::framebuffer::core::Framebuffer;
-use libremarkable::framebuffer::FramebufferIO;
-use libremarkable::framebuffer::FramebufferRefresh;
-use log::info;
+use libremarkable::framebuffer::{FramebufferIO, FramebufferRefresh};
+use libremarkable::input::{ev::EvDevContext, InputDevice, InputEvent};
+use log::{error, info};
+use std::sync::mpsc::channel;
 
 use super::AppBackend;
 
@@ -31,5 +32,17 @@ impl AppBackend for RemarkableBackend {
             0,
             true,
         );
+
+        info!("Starting event loop...");
+
+        let (input_tx, input_rx) = channel::<InputEvent>();
+
+        EvDevContext::new(InputDevice::Multitouch, input_tx.clone()).start();
+
+        info!("Waiting for input events...");
+        while let Ok(event) = input_rx.recv() {
+            info!("{:?}", event);
+        }
+        info!("All event loops were closed?!?");
     }
 }
