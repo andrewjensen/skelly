@@ -3,9 +3,11 @@ use image::RgbaImage;
 use libremarkable::framebuffer::common::*;
 use libremarkable::framebuffer::core::Framebuffer;
 use libremarkable::framebuffer::{FramebufferIO, FramebufferRefresh};
-use libremarkable::input::{ev::EvDevContext, InputDevice, InputEvent};
+use libremarkable::input::{ev::EvDevContext, InputDevice, InputEvent, MultitouchEvent};
 use log::{error, info};
 use std::sync::mpsc::channel;
+
+use crate::CANVAS_WIDTH;
 
 use super::AppBackend;
 
@@ -42,6 +44,21 @@ impl AppBackend for RemarkableBackend {
         info!("Waiting for input events...");
         while let Ok(event) = input_rx.recv() {
             info!("{:?}", event);
+
+            if let InputEvent::MultitouchEvent {
+                event: multitouch_event,
+            } = event
+            {
+                if let MultitouchEvent::Press { finger } = multitouch_event {
+                    let finger_x = finger.pos.x as u32;
+                    if finger_x < (CANVAS_WIDTH / 3) {
+                        // Close to the left edge
+                        info!("Previous page");
+                    } else {
+                        info!("Next page");
+                    }
+                }
+            }
         }
         info!("All event loops were closed?!?");
     }
