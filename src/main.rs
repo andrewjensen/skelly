@@ -1,17 +1,19 @@
 use log::{error, info};
 use std::env;
 use std::process;
+use tokio::task::spawn_blocking;
 
-mod app;
-mod app_backend;
+mod browser_core;
 mod debugging;
 mod layout;
 mod network;
 mod parsing;
 mod rendering;
 
-use crate::app::App;
-use crate::app_backend::get_app_backend;
+#[cfg(feature = "remarkable")]
+mod remarkable;
+
+use crate::browser_core::BrowserCore;
 
 pub const CANVAS_WIDTH: u32 = 1404;
 pub const CANVAS_HEIGHT: u32 = 1872;
@@ -20,7 +22,9 @@ pub const CANVAS_MARGIN_TOP: u32 = 150;
 pub const CANVAS_MARGIN_BOTTOM: u32 = 150;
 pub const DEBUG_LAYOUT: bool = false;
 
-fn main() {
+#[cfg(feature = "static")]
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
     // Get the first command line argument and log it out
@@ -30,15 +34,35 @@ fn main() {
         process::exit(1);
     }
 
-    let url = args.get(1).unwrap();
+    let url = args.get(1).unwrap().to_string();
     info!("The URL argument is: {}", url);
 
-    let app_backend = get_app_backend();
-    let mut app = App::new(app_backend);
+    // TODO: rewrite to be async
+    spawn_blocking(move || {
+        let mut browser = BrowserCore::new();
+        browser.navigate_to(&url);
 
-    app.temp_set_initial_url(url);
+        for page in browser.get_pages().iter().enumerate() {
+            let (page_idx, page_canvas) = page;
 
-    app.run();
+            let file_path = format!("./output/page-{}.png", page_idx);
+            page_canvas.save(&file_path).expect("Failed to save image");
+        }
+    })
+    .await?;
 
     info!("Done");
+
+    Ok(())
+}
+
+#[cfg(feature = "remarkable")]
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::init();
+
+    let mut app = remarkable::RemarkableApp::new();
+    app.run().await?;
+
+    Ok(())
 }

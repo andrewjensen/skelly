@@ -1,35 +1,30 @@
 use log::{error, info};
 use std::process;
 
-use crate::app_backend::AppBackend;
 use crate::network::{fetch_webpage, ContentType};
 use crate::parsing::parse_webpage;
 use crate::rendering::Renderer;
 
-pub struct App<B: AppBackend> {
-    temp_url: String,
-    backend: B,
+pub struct BrowserCore {
+    current_url: Option<String>,
     page_canvases: Vec<image::RgbaImage>,
 }
 
-impl<B: AppBackend> App<B> {
-    pub fn new(backend: B) -> App<B> {
-        App {
-            temp_url: "".to_string(),
-            backend,
+impl BrowserCore {
+    pub fn new() -> Self {
+        Self {
+            current_url: None,
             page_canvases: Vec::new(),
         }
     }
 
-    pub fn temp_set_initial_url(&mut self, url: &str) {
-        self.temp_url = url.to_string();
-    }
+    pub fn navigate_to(&mut self, url: &str) {
+        info!("Navigating to {}", url);
 
-    pub fn run(&mut self) {
-        info!("Running app!");
+        self.current_url = Some(url.to_string());
 
         info!("Fetching webpage...");
-        let fetch_result = fetch_webpage(&self.temp_url);
+        let fetch_result = fetch_webpage(url);
         if let Err(err) = fetch_result {
             error!("Failed to fetch webpage: {}", err);
             process::exit(1);
@@ -52,9 +47,9 @@ impl<B: AppBackend> App<B> {
         info!("Rendering pages...");
         let mut renderer = Renderer::new();
         self.page_canvases = renderer.render_document(&document);
+    }
 
-        info!("Sending to backend...");
-        let first_page_canvas = self.page_canvases.first().unwrap();
-        self.backend.render(0, first_page_canvas);
+    pub fn get_pages(&self) -> &Vec<image::RgbaImage> {
+        &self.page_canvases
     }
 }
