@@ -18,13 +18,13 @@ impl BrowserCore {
         }
     }
 
-    pub fn navigate_to(&mut self, url: &str) {
+    pub async fn navigate_to(&mut self, url: &str) {
         info!("Navigating to {}", url);
 
         self.current_url = Some(url.to_string());
 
         info!("Fetching webpage...");
-        let fetch_result = fetch_webpage(url);
+        let fetch_result = fetch_webpage(url).await;
         if let Err(err) = fetch_result {
             error!("Failed to fetch webpage: {}", err);
             process::exit(1);

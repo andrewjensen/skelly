@@ -37,19 +37,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let url = args.get(1).unwrap().to_string();
     info!("The URL argument is: {}", url);
 
-    // TODO: rewrite to be async
-    spawn_blocking(move || {
-        let mut browser = BrowserCore::new();
-        browser.navigate_to(&url);
+    let mut browser = BrowserCore::new();
+    browser.navigate_to(&url).await;
 
+    spawn_blocking(move || {
         for page in browser.get_pages().iter().enumerate() {
             let (page_idx, page_canvas) = page;
 
             let file_path = format!("./output/page-{}.png", page_idx);
             page_canvas.save(&file_path).expect("Failed to save image");
         }
-    })
-    .await?;
+    });
 
     info!("Done");
 

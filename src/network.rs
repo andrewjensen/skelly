@@ -19,10 +19,10 @@ pub enum FetchError {
     NonSuccessStatusCode(u16),
 }
 
-pub fn fetch_webpage(url: &str) -> Result<Webpage, FetchError> {
-    let client = reqwest::blocking::Client::new();
+pub async fn fetch_webpage(url: &str) -> Result<Webpage, FetchError> {
+    let client = reqwest::Client::new();
     let request = client.get(url).header("Accept", "text/html");
-    let response = request.send().unwrap();
+    let response = request.send().await.unwrap();
 
     let status_code = response.status();
 
@@ -42,7 +42,7 @@ pub fn fetch_webpage(url: &str) -> Result<Webpage, FetchError> {
         }
     };
 
-    let body = response.text().unwrap();
+    let body = response.text().await.unwrap();
 
     let webpage = Webpage {
         content: body.to_string(),
