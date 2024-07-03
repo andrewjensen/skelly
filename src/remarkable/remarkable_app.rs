@@ -50,16 +50,13 @@ impl RemarkableApp {
         self.browser.navigate_to(&url).await;
         self.current_page_idx = 0;
 
-        let page_canvas = self.browser.get_pages().get(self.current_page_idx).unwrap();
-
-        for (x, y, pixel) in page_canvas.enumerate_pixels() {
-            let pixel_pos = Point2::<u32>::new(x, y);
-            self.framebuffer.write_pixel(
-                pixel_pos.cast().unwrap(),
-                color::RGB(pixel.0[0], pixel.0[1], pixel.0[2]),
-            );
-        }
-
+        let page_canvas = self
+            .browser
+            .get_pages()
+            .get(self.current_page_idx)
+            .unwrap()
+            .clone();
+        self.render_page(&page_canvas);
         self.refresh_screen();
 
         let (app_tx, mut app_rx) = tokio_channel::<AppEvent>(32);
@@ -119,16 +116,13 @@ impl RemarkableApp {
                     self.browser.navigate_to(&command.url).await;
                     self.current_page_idx = 0;
 
-                    let page_canvas = self.browser.get_pages().get(self.current_page_idx).unwrap();
-
-                    for (x, y, pixel) in page_canvas.enumerate_pixels() {
-                        let pixel_pos = Point2::<u32>::new(x, y);
-                        self.framebuffer.write_pixel(
-                            pixel_pos.cast().unwrap(),
-                            color::RGB(pixel.0[0], pixel.0[1], pixel.0[2]),
-                        );
-                    }
-
+                    let page_canvas = self
+                        .browser
+                        .get_pages()
+                        .get(self.current_page_idx)
+                        .unwrap()
+                        .clone();
+                    self.render_page(&page_canvas);
                     self.refresh_screen();
                 }
                 AppEvent::PreviousPage => {
@@ -136,13 +130,7 @@ impl RemarkableApp {
                     match self.browser.get_pages().get(self.current_page_idx - 1) {
                         Some(page_canvas) => {
                             self.current_page_idx -= 1;
-                            for (x, y, pixel) in page_canvas.enumerate_pixels() {
-                                let pixel_pos = Point2::<u32>::new(x, y);
-                                self.framebuffer.write_pixel(
-                                    pixel_pos.cast().unwrap(),
-                                    color::RGB(pixel.0[0], pixel.0[1], pixel.0[2]),
-                                );
-                            }
+                            self.render_page(&page_canvas.clone());
                             self.refresh_screen();
                         }
                         None => {
@@ -155,13 +143,7 @@ impl RemarkableApp {
                     match self.browser.get_pages().get(self.current_page_idx + 1) {
                         Some(page_canvas) => {
                             self.current_page_idx += 1;
-                            for (x, y, pixel) in page_canvas.enumerate_pixels() {
-                                let pixel_pos = Point2::<u32>::new(x, y);
-                                self.framebuffer.write_pixel(
-                                    pixel_pos.cast().unwrap(),
-                                    color::RGB(pixel.0[0], pixel.0[1], pixel.0[2]),
-                                );
-                            }
+                            self.render_page(&page_canvas.clone());
                             self.refresh_screen();
                         }
                         None => {
@@ -176,6 +158,16 @@ impl RemarkableApp {
         web_server_join.await?;
 
         Ok(())
+    }
+
+    fn render_page(&mut self, page_canvas: &RgbaImage) {
+        for (x, y, pixel) in page_canvas.enumerate_pixels() {
+            let pixel_pos = Point2::<u32>::new(x, y);
+            self.framebuffer.write_pixel(
+                pixel_pos.cast().unwrap(),
+                color::RGB(pixel.0[0], pixel.0[1], pixel.0[2]),
+            );
+        }
     }
 
     fn refresh_screen(&mut self) {
