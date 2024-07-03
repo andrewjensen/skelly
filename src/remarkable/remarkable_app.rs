@@ -1,3 +1,6 @@
+use axum::http::StatusCode;
+use axum::routing::{get, post};
+use axum::{Json, Router};
 use cgmath::Point2;
 use image::RgbaImage;
 use libremarkable::framebuffer::common::*;
@@ -5,6 +8,7 @@ use libremarkable::framebuffer::core::Framebuffer;
 use libremarkable::framebuffer::{FramebufferIO, FramebufferRefresh};
 use libremarkable::input::{ev::EvDevContext, InputDevice, InputEvent, MultitouchEvent};
 use log::{info, warn};
+use serde::Deserialize;
 use std::sync::mpsc::channel as std_channel;
 use tokio::sync::mpsc::channel as tokio_channel;
 use tokio::task::spawn_blocking;
@@ -14,8 +18,14 @@ use crate::CANVAS_WIDTH;
 
 #[derive(Debug)]
 enum AppEvent {
+    Navigate(NavigateCommand),
     PreviousPage,
     NextPage,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct NavigateCommand {
+    pub url: String,
 }
 
 pub struct RemarkableApp {
@@ -53,6 +63,7 @@ impl RemarkableApp {
         self.refresh_screen();
 
         let (app_tx, mut app_rx) = tokio_channel::<AppEvent>(32);
+        let app_tx_web = app_tx.clone();
 
         // Input event loop
         let event_loop_join = spawn_blocking(move || {
@@ -81,8 +92,45 @@ impl RemarkableApp {
             }
         });
 
+        let web_server_join = tokio::spawn(async move {
+            info!("Starting web server...");
+            let web_server = Router::new()
+                .route("/", get(|| async { "Hello from Skelly!" }))
+                .route(
+                    "/navigate",
+                    post(|Json(payload): Json<NavigateCommand>| async move {
+                        app_tx_web
+                            .send(AppEvent::Navigate(payload.clone()))
+                            .await
+                            .unwrap();
+
+                        StatusCode::OK
+                    }),
+                );
+            let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+            axum::serve(listener, web_server).await.unwrap();
+        });
+
+        info!("Starting app event loop...");
         while let Some(event) = app_rx.recv().await {
             match event {
+                AppEvent::Navigate(command) => {
+                    info!("Received event: Navigate to {}", command.url);
+                    self.browser.navigate_to(&command.url).await;
+                    self.current_page_idx = 0;
+
+                    let page_canvas = self.browser.get_pages().get(self.current_page_idx).unwrap();
+
+                    for (x, y, pixel) in page_canvas.enumerate_pixels() {
+                        let pixel_pos = Point2::<u32>::new(x, y);
+                        self.framebuffer.write_pixel(
+                            pixel_pos.cast().unwrap(),
+                            color::RGB(pixel.0[0], pixel.0[1], pixel.0[2]),
+                        );
+                    }
+
+                    self.refresh_screen();
+                }
                 AppEvent::PreviousPage => {
                     info!("Received event: Previous page");
                     match self.browser.get_pages().get(self.current_page_idx - 1) {
@@ -125,6 +173,7 @@ impl RemarkableApp {
         }
 
         event_loop_join.await?;
+        web_server_join.await?;
 
         Ok(())
     }
