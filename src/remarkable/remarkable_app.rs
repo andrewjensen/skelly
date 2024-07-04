@@ -2,7 +2,7 @@ use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use cgmath::Point2;
-use image::RgbaImage;
+use image::{load_from_memory, RgbaImage};
 use libremarkable::framebuffer::common::*;
 use libremarkable::framebuffer::core::Framebuffer;
 use libremarkable::framebuffer::{FramebufferIO, FramebufferRefresh};
@@ -13,11 +13,12 @@ use std::sync::mpsc::channel as std_channel;
 use tokio::sync::mpsc::channel as tokio_channel;
 use tokio::task::spawn_blocking;
 
-use crate::browser_core::BrowserCore;
+use crate::browser_core::{BrowserCore, BrowserState};
 use crate::CANVAS_WIDTH;
 
 #[derive(Debug)]
 enum AppEvent {
+    Initialize,
     Navigate(NavigateCommand),
     PreviousPage,
     NextPage,
@@ -44,23 +45,10 @@ impl RemarkableApp {
     }
 
     pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let url = "https://andrewjensen.io/pen-plotter-art/";
-        info!("The URL argument is: {}", url);
-
-        self.browser.navigate_to(&url).await;
-        self.current_page_idx = 0;
-
-        let page_canvas = self
-            .browser
-            .get_pages()
-            .get(self.current_page_idx)
-            .unwrap()
-            .clone();
-        self.render_page(&page_canvas);
-        self.refresh_screen();
-
         let (app_tx, mut app_rx) = tokio_channel::<AppEvent>(32);
         let app_tx_web = app_tx.clone();
+
+        app_tx.send(AppEvent::Initialize).await.unwrap();
 
         // Input event loop
         let event_loop_join = spawn_blocking(move || {
@@ -111,22 +99,58 @@ impl RemarkableApp {
         info!("Starting app event loop...");
         while let Some(event) = app_rx.recv().await {
             match event {
+                AppEvent::Initialize => {
+                    info!("Time to show the initial view!");
+
+                    let placeholder_view = load_from_memory(include_bytes!(
+                        "../../assets/placeholder-initial-view.png"
+                    ))
+                    .unwrap();
+                    let placeholder_view = placeholder_view.to_rgba8();
+                    self.render_page(&placeholder_view);
+                    self.refresh_screen();
+                }
                 AppEvent::Navigate(command) => {
                     info!("Received event: Navigate to {}", command.url);
-                    self.browser.navigate_to(&command.url).await;
-                    self.current_page_idx = 0;
 
-                    let page_canvas = self
-                        .browser
-                        .get_pages()
-                        .get(self.current_page_idx)
-                        .unwrap()
-                        .clone();
-                    self.render_page(&page_canvas);
+                    let placeholder_loading_view = load_from_memory(include_bytes!(
+                        "../../assets/placeholder-loading-view.png"
+                    ))
+                    .unwrap();
+                    let placeholder_loading_view = placeholder_loading_view.to_rgba8();
+                    self.render_page(&placeholder_loading_view);
                     self.refresh_screen();
+
+                    self.browser.navigate_to(&command.url).await;
+
+                    match &self.browser.state {
+                        BrowserState::ViewingPage { url, page_canvases } => {
+                            info!("Page loaded successfully");
+
+                            self.current_page_idx = 0;
+                            let page_canvas = page_canvases.get(0).unwrap().clone();
+                            self.render_page(&page_canvas);
+                            self.refresh_screen();
+                        }
+                        BrowserState::PageError { url, error } => {
+                            warn!("Failed to load the page, time to show the error view!");
+
+                            let placeholder_view = load_from_memory(include_bytes!(
+                                "../../assets/placeholder-error-view.png"
+                            ))
+                            .unwrap();
+                            let placeholder_view = placeholder_view.to_rgba8();
+                            self.render_page(&placeholder_view);
+                            self.refresh_screen();
+                        }
+                        _ => {
+                            unreachable!("Unexpected browser state after navigation");
+                        }
+                    }
                 }
                 AppEvent::PreviousPage => {
                     info!("Received event: Previous page");
+
                     match self.browser.get_pages().get(self.current_page_idx - 1) {
                         Some(page_canvas) => {
                             self.current_page_idx -= 1;

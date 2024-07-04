@@ -15,6 +15,8 @@ pub enum ContentType {
 
 #[derive(Error, Debug)]
 pub enum FetchError {
+    #[error("Failed to send request: {0}")]
+    FailedToSendRequest(String),
     #[error("Received status code {0}")]
     NonSuccessStatusCode(u16),
 }
@@ -22,7 +24,12 @@ pub enum FetchError {
 pub async fn fetch_webpage(url: &str) -> Result<Webpage, FetchError> {
     let client = reqwest::Client::new();
     let request = client.get(url).header("Accept", "text/html");
-    let response = request.send().await.unwrap();
+    let send_result = request.send().await;
+
+    if let Err(err) = send_result {
+        return Err(FetchError::FailedToSendRequest(err.to_string()));
+    }
+    let response = send_result.unwrap();
 
     let status_code = response.status();
 
