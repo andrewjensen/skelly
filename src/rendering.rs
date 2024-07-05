@@ -1,6 +1,6 @@
 use cgmath::Point2;
 use cosmic_text::{
-    Attrs, Buffer, Color, Family, FontSystem, LayoutRun, Metrics, Shaping, SwashCache, Weight,
+    Attrs, Buffer, Color, FontSystem, LayoutRun, Metrics, Shaping, Style, SwashCache, Weight,
 };
 use image::{Pixel, Rgba, RgbaImage};
 use log::info;
@@ -135,7 +135,7 @@ impl<'a> Renderer<'a> {
         let attrs_paragraph =
             attrs_default.metrics(Metrics::relative(font_size, line_height).scale(display_scale));
 
-        let attrs_heading = attrs_default.weight(Weight::BOLD).family(Family::Monospace);
+        let attrs_heading = attrs_default.weight(Weight::BOLD);
         let attrs_h1 = attrs_heading
             .metrics(Metrics::relative(font_size * 2.0, line_height).scale(display_scale));
         let attrs_h2 = attrs_heading
@@ -148,6 +148,11 @@ impl<'a> Renderer<'a> {
             attrs_heading.metrics(Metrics::relative(font_size, line_height).scale(display_scale));
         let attrs_h6 =
             attrs_heading.metrics(Metrics::relative(font_size, line_height).scale(display_scale));
+
+        let attrs_block_quote = attrs_default
+            .style(Style::Italic)
+            .color(Color::rgba(0x99, 0x99, 0x99, 0xFF))
+            .metrics(Metrics::relative(font_size, line_height).scale(display_scale));
 
         let mut spans: Vec<(&str, Attrs)> = Vec::new();
 
@@ -174,6 +179,10 @@ impl<'a> Renderer<'a> {
                 Block::List => {
                     spans.push(("(TODO: render list)", attrs_paragraph));
                     spans.push(("\n\n", attrs_paragraph));
+                }
+                Block::BlockQuote { content } => {
+                    spans.push((content, attrs_block_quote));
+                    spans.push(("\n\n", attrs_block_quote));
                 }
             }
         }
