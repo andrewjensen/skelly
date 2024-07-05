@@ -9,11 +9,13 @@ mod layout;
 mod network;
 mod parsing;
 mod rendering;
+mod settings;
 
 #[cfg(feature = "remarkable")]
 mod remarkable;
 
 use crate::browser_core::BrowserCore;
+use crate::settings::load_settings;
 
 pub const CANVAS_WIDTH: u32 = 1404;
 pub const CANVAS_HEIGHT: u32 = 1872;
@@ -37,7 +39,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let url = args.get(1).unwrap().to_string();
     info!("The URL argument is: {}", url);
 
-    let mut browser = BrowserCore::new();
+    let settings_file_path = "./settings.json";
+    let settings = load_settings(settings_file_path).await.unwrap();
+    info!("Settings: {:#?}", settings);
+
+    let mut browser = BrowserCore::new(settings.clone());
     browser.navigate_to(&url).await;
 
     spawn_blocking(move || {
@@ -59,7 +65,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
-    let mut app = remarkable::RemarkableApp::new();
+    let settings_file_path = "/home/root/.config/skelly/settings.json";
+    let settings = load_settings(settings_file_path).await.unwrap();
+    info!("Settings: {:#?}", settings);
+
+    let mut app = remarkable::RemarkableApp::new(settings);
     app.run().await?;
 
     Ok(())

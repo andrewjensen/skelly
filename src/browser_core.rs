@@ -1,9 +1,9 @@
 use log::{error, info};
-use std::process;
 
 use crate::network::{fetch_webpage, ContentType};
 use crate::parsing::parse_webpage;
 use crate::rendering::Renderer;
+use crate::settings::Settings;
 
 pub enum BrowserState {
     Initial,
@@ -21,12 +21,14 @@ pub enum BrowserState {
 }
 
 pub struct BrowserCore {
+    pub settings: Settings,
     pub state: BrowserState,
 }
 
 impl BrowserCore {
-    pub fn new() -> Self {
+    pub fn new(settings: Settings) -> Self {
         Self {
+            settings,
             state: BrowserState::Initial,
         }
     }
@@ -72,7 +74,7 @@ impl BrowserCore {
         // info!("Parsed document: {:#?}", document);
 
         info!("Rendering pages...");
-        let mut renderer = Renderer::new();
+        let mut renderer = Renderer::new(&self.settings.rendering);
         let page_canvases = renderer.render_document(&document);
 
         self.state = BrowserState::ViewingPage {

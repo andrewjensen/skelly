@@ -7,28 +7,30 @@ use log::info;
 
 use crate::layout::split_runs_into_pages;
 use crate::parsing::{Block, Document};
+use crate::settings::RenderingSettings;
 
-use crate::{
-    CANVAS_HEIGHT, CANVAS_MARGIN_BOTTOM, CANVAS_MARGIN_TOP, CANVAS_MARGIN_X, CANVAS_WIDTH,
-    DEBUG_LAYOUT,
-};
+use crate::{CANVAS_HEIGHT, CANVAS_MARGIN_BOTTOM, CANVAS_MARGIN_TOP, CANVAS_WIDTH, DEBUG_LAYOUT};
 
-pub struct Renderer {
+pub struct Renderer<'a> {
+    rendering_settings: &'a RenderingSettings,
     buffer: Buffer,
     font_system: FontSystem,
     swash_cache: SwashCache,
 }
 
-impl Renderer {
-    pub fn new() -> Self {
+impl<'a> Renderer<'a> {
+    pub fn new(rendering_settings: &'a RenderingSettings) -> Self {
         let mut font_system = FontSystem::new();
         let swash_cache = SwashCache::new();
 
-        let display_scale: f32 = 1.0;
-        let metrics = Metrics::new(32.0, 44.0);
+        let display_scale: f32 = 2.0;
+        let metrics = Metrics::relative(
+            rendering_settings.font_size as f32,
+            rendering_settings.line_height,
+        );
         let mut buffer = Buffer::new_empty(metrics.scale(display_scale));
 
-        let buffer_width = CANVAS_WIDTH - CANVAS_MARGIN_X * 2;
+        let buffer_width = CANVAS_WIDTH - rendering_settings.screen_margin_x * 2;
         let buffer_height = i32::MAX; // No limit on height so the buffer will calculate everything
 
         buffer.set_size(
@@ -38,6 +40,7 @@ impl Renderer {
         );
 
         Renderer {
+            rendering_settings,
             buffer,
             font_system,
             swash_cache,
@@ -76,7 +79,7 @@ impl Renderer {
                 &mut self.swash_cache,
                 text_color,
                 |buffer_x, buffer_y, color| {
-                    let canvas_x = buffer_x + CANVAS_MARGIN_X as i32;
+                    let canvas_x = buffer_x + self.rendering_settings.screen_margin_x as i32;
                     let canvas_y = buffer_y + CANVAS_MARGIN_TOP as i32;
 
                     if canvas_x < 0 || canvas_x >= CANVAS_WIDTH as i32 {
@@ -101,11 +104,11 @@ impl Renderer {
 
             if DEBUG_LAYOUT {
                 let box_top_left = Point2::<u32> {
-                    x: CANVAS_MARGIN_X,
+                    x: self.rendering_settings.screen_margin_x,
                     y: CANVAS_MARGIN_TOP,
                 };
                 let box_bottom_right = Point2::<u32> {
-                    x: CANVAS_WIDTH - CANVAS_MARGIN_X,
+                    x: CANVAS_WIDTH - self.rendering_settings.screen_margin_x,
                     y: CANVAS_HEIGHT - CANVAS_MARGIN_BOTTOM,
                 };
                 draw_box_border(
@@ -123,16 +126,28 @@ impl Renderer {
     }
 
     fn set_buffer_text(&mut self, document: &Document) {
+        let display_scale: f32 = 2.0;
+
+        let font_size = self.rendering_settings.font_size as f32;
+        let line_height = self.rendering_settings.line_height;
+
         let attrs_default = Attrs::new();
-        let attrs_paragraph = attrs_default.metrics(Metrics::relative(32.0, 1.2));
+        let attrs_paragraph =
+            attrs_default.metrics(Metrics::relative(font_size, line_height).scale(display_scale));
 
         let attrs_heading = attrs_default.weight(Weight::BOLD).family(Family::Monospace);
-        let attrs_h1 = attrs_heading.metrics(Metrics::relative(64.0, 1.2));
-        let attrs_h2 = attrs_heading.metrics(Metrics::relative(48.0, 1.2));
-        let attrs_h3 = attrs_heading.metrics(Metrics::relative(40.0, 1.2));
-        let attrs_h4 = attrs_heading.metrics(Metrics::relative(32.0, 1.2));
-        let attrs_h5 = attrs_heading.metrics(Metrics::relative(32.0, 1.2));
-        let attrs_h6 = attrs_heading.metrics(Metrics::relative(32.0, 1.2));
+        let attrs_h1 = attrs_heading
+            .metrics(Metrics::relative(font_size * 2.0, line_height).scale(display_scale));
+        let attrs_h2 = attrs_heading
+            .metrics(Metrics::relative(font_size * 1.5, line_height).scale(display_scale));
+        let attrs_h3 = attrs_heading
+            .metrics(Metrics::relative(font_size * 1.25, line_height).scale(display_scale));
+        let attrs_h4 =
+            attrs_heading.metrics(Metrics::relative(font_size, line_height).scale(display_scale));
+        let attrs_h5 =
+            attrs_heading.metrics(Metrics::relative(font_size, line_height).scale(display_scale));
+        let attrs_h6 =
+            attrs_heading.metrics(Metrics::relative(font_size, line_height).scale(display_scale));
 
         let mut spans: Vec<(&str, Attrs)> = Vec::new();
 

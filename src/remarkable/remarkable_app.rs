@@ -14,6 +14,7 @@ use tokio::sync::mpsc::channel as tokio_channel;
 use tokio::task::spawn_blocking;
 
 use crate::browser_core::{BrowserCore, BrowserState};
+use crate::settings::Settings;
 use crate::CANVAS_WIDTH;
 
 #[derive(Debug)]
@@ -36,9 +37,9 @@ pub struct RemarkableApp {
 }
 
 impl RemarkableApp {
-    pub fn new() -> Self {
+    pub fn new(settings: Settings) -> Self {
         Self {
-            browser: BrowserCore::new(),
+            browser: BrowserCore::new(settings),
             framebuffer: Framebuffer::new(),
             current_page_idx: 0,
         }
