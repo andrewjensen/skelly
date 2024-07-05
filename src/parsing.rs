@@ -8,10 +8,22 @@ pub struct Document {
 
 #[derive(Debug)]
 pub enum Block {
-    Heading { level: u8, content: String },
-    Paragraph { content: String },
+    Heading {
+        level: u8,
+        content: String,
+    },
+    Paragraph {
+        content: String,
+    },
     List,
-    BlockQuote { content: String },
+    BlockQuote {
+        content: String,
+    },
+    ThematicBreak,
+    CodeBlock {
+        language: Option<String>,
+        content: String,
+    },
 }
 
 #[derive(Debug)]
@@ -96,6 +108,8 @@ fn parse_block(node_block: &Node, source: &[u8]) -> Result<Block, ParseError> {
         "tight_list" => Ok(Block::List),
         "loose_list" => Ok(Block::List),
         "block_quote" => parse_block_quote(node_block, source),
+        "thematic_break" => Ok(Block::ThematicBreak),
+        "fenced_code_block" => parse_code_block(node_block, source),
         _ => Err(ParseError::UnexpectedNodeKind(
             node_block.kind().to_string(),
         )),
@@ -145,6 +159,34 @@ fn parse_paragraph(node_paragraph: &Node, source: &[u8]) -> Result<Block, ParseE
 fn parse_block_quote(node_block_quote: &Node, source: &[u8]) -> Result<Block, ParseError> {
     let content = temp_squash_block_text(node_block_quote, source)?;
     Ok(Block::BlockQuote { content })
+}
+
+fn parse_code_block(node_fenced_code_block: &Node, source: &[u8]) -> Result<Block, ParseError> {
+    let mut cursor = node_fenced_code_block.walk();
+
+    let node_info_string = node_fenced_code_block
+        .named_children(&mut cursor)
+        .find(|child| child.kind() == "info_string");
+    let language = match node_info_string {
+        Some(node_info_string) => {
+            let node_text = expect_node_kind(node_info_string.named_child(0), "text")?;
+            let language = node_text.utf8_text(source)?.to_string();
+
+            Some(language)
+        }
+        None => None,
+    };
+
+    let node_code_fence_content = expect_node_kind(
+        node_fenced_code_block
+            .named_children(&mut cursor)
+            .find(|child| child.kind() == "code_fence_content"),
+        "code_fence_content",
+    )?;
+    let node_content_inner_text = expect_node_kind(node_code_fence_content.named_child(0), "text")?;
+    let content = node_content_inner_text.utf8_text(source)?.to_string();
+
+    Ok(Block::CodeBlock { language, content })
 }
 
 fn temp_squash_block_text(node_parent: &Node, source: &[u8]) -> Result<String, ParseError> {

@@ -1,6 +1,7 @@
 use cgmath::Point2;
 use cosmic_text::{
-    Attrs, Buffer, Color, FontSystem, LayoutRun, Metrics, Shaping, Style, SwashCache, Weight,
+    Attrs, Buffer, Color, Family, FontSystem, LayoutRun, Metrics, Shaping, Style, SwashCache,
+    Weight,
 };
 use image::{Pixel, Rgba, RgbaImage};
 use log::info;
@@ -154,6 +155,11 @@ impl<'a> Renderer<'a> {
             .color(Color::rgba(0x99, 0x99, 0x99, 0xFF))
             .metrics(Metrics::relative(font_size, line_height).scale(display_scale));
 
+        let attrs_code_block = attrs_default
+            .family(Family::Monospace)
+            .color(Color::rgba(0x00, 0x00, 0x00, 0xFF))
+            .metrics(Metrics::relative(font_size, line_height).scale(display_scale));
+
         let mut spans: Vec<(&str, Attrs)> = Vec::new();
 
         for block in document.blocks.iter() {
@@ -183,6 +189,25 @@ impl<'a> Renderer<'a> {
                 Block::BlockQuote { content } => {
                     spans.push((content, attrs_block_quote));
                     spans.push(("\n\n", attrs_block_quote));
+                }
+                Block::ThematicBreak => {
+                    spans.push(("---\n\n", attrs_default));
+                }
+                Block::CodeBlock { language, content } => {
+                    match language {
+                        Some(language) => {
+                            spans.push(("```", attrs_code_block));
+                            spans.push((language, attrs_code_block));
+                            spans.push(("\n", attrs_code_block));
+                        }
+                        None => {
+                            spans.push(("```\n", attrs_code_block));
+                        }
+                    }
+                    spans.push((content, attrs_code_block));
+                    spans.push(("\n", attrs_code_block));
+                    spans.push(("```", attrs_code_block));
+                    spans.push(("\n\n", attrs_code_block));
                 }
             }
         }
