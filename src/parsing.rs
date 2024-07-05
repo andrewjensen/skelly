@@ -11,6 +11,7 @@ pub enum Block {
     Heading { level: u8, content: String },
     Paragraph { content: String },
     List,
+    BlockQuote { content: String },
 }
 
 #[derive(Debug)]
@@ -29,6 +30,15 @@ pub enum ParseError {
 
     #[error("Encountered unexpected node kind: {0}")]
     UnexpectedNodeKind(String),
+
+    #[error("Wrong node kind: Expected {0} but received {1}")]
+    WrongNodeKind(String, String),
+
+    #[error("Missing expected node kind: {0}")]
+    MissingExpectedNodeKind(String),
+
+    #[error("Failed to get node text: {0}")]
+    FailedToGetNodeText(#[from] std::str::Utf8Error),
 }
 
 pub fn parse_webpage(page_html: &str) -> Result<Document, ParseError> {
@@ -85,6 +95,7 @@ fn parse_block(node_block: &Node, source: &[u8]) -> Result<Block, ParseError> {
         "paragraph" => parse_paragraph(node_block, source),
         "tight_list" => Ok(Block::List),
         "loose_list" => Ok(Block::List),
+        "block_quote" => parse_block_quote(node_block, source),
         _ => Err(ParseError::UnexpectedNodeKind(
             node_block.kind().to_string(),
         )),
@@ -120,18 +131,23 @@ fn parse_heading(node_heading: &Node, source: &[u8]) -> Result<Block, ParseError
         ));
     }
     let node_heading_content = cursor.node();
-    let content = temp_squash_block_text(&node_heading_content, source);
+    let content = temp_squash_block_text(&node_heading_content, source)?;
 
     Ok(Block::Heading { level, content })
 }
 
 fn parse_paragraph(node_paragraph: &Node, source: &[u8]) -> Result<Block, ParseError> {
     Ok(Block::Paragraph {
-        content: temp_squash_block_text(node_paragraph, source),
+        content: temp_squash_block_text(node_paragraph, source)?,
     })
 }
 
-fn temp_squash_block_text(node_parent: &Node, source: &[u8]) -> String {
+fn parse_block_quote(node_block_quote: &Node, source: &[u8]) -> Result<Block, ParseError> {
+    let content = temp_squash_block_text(node_block_quote, source)?;
+    Ok(Block::BlockQuote { content })
+}
+
+fn temp_squash_block_text(node_parent: &Node, source: &[u8]) -> Result<String, ParseError> {
     let mut content = String::new();
 
     let mut first = true;
@@ -144,15 +160,16 @@ fn temp_squash_block_text(node_parent: &Node, source: &[u8]) -> String {
 
         match node_child.kind() {
             "text" => {
-                content.push_str(node_child.utf8_text(source).unwrap());
+                let node_text = node_child.utf8_text(source)?;
+                content.push_str(node_text);
             }
             "link" => {
-                let link = parse_link(&node_child, source);
+                let link = parse_link(&node_child, source)?;
                 content.push_str(&format!("[{}]({})", link.text, link.destination));
             }
             "strong_emphasis" => {
                 let node_emphasized_text = node_child.named_child(0).expect("Expected text node");
-                let emphasized_text = node_emphasized_text.utf8_text(source).unwrap();
+                let emphasized_text = node_emphasized_text.utf8_text(source)?;
                 content.push_str(&format!("**{}**", emphasized_text));
             }
             _ => {
@@ -161,26 +178,55 @@ fn temp_squash_block_text(node_parent: &Node, source: &[u8]) -> String {
         }
     }
 
-    content.trim().to_string()
+    Ok(content.trim().to_string())
 }
 
-fn parse_link(node_link: &Node, source: &[u8]) -> Link {
-    let node_link_text = node_link.named_child(0).expect("Expected link_text node");
-    let node_link_text_inner = node_link_text
-        .named_child(0)
-        .expect("Expected text node inside of link_text");
-    let text = node_link_text_inner.utf8_text(source).unwrap().to_string();
+fn parse_link(node_link: &Node, source: &[u8]) -> Result<Link, ParseError> {
+    let mut cursor = node_link.walk();
 
-    let node_link_destination = node_link
-        .named_child(1)
-        .expect("Expected link_destination node");
-    let node_link_destination_inner = node_link_destination
-        .named_child(0)
-        .expect("Expected text node inside of link_destination");
-    let destination = node_link_destination_inner
-        .utf8_text(source)
-        .unwrap()
-        .to_string();
+    let node_link_text = node_link
+        .named_children(&mut cursor)
+        .find(|child| child.kind() == "link_text");
 
-    Link { destination, text }
+    let text: String = match node_link_text {
+        None => "(No link text)".to_string(),
+        Some(node_link_text) => match node_link_text.kind() {
+            "text" => node_link_text.utf8_text(source)?.to_string(),
+            _ => "(Complex link text)".to_string(),
+        },
+    };
+
+    let node_link_destination = expect_node_kind(
+        node_link
+            .named_children(&mut cursor)
+            .find(|child| child.kind() == "link_destination"),
+        "link_destination",
+    )?;
+
+    let node_link_destination_inner =
+        expect_node_kind(node_link_destination.named_child(0), "text")?;
+    let destination = node_link_destination_inner.utf8_text(source)?.to_string();
+
+    Ok(Link { destination, text })
+}
+
+fn expect_node_kind<'s, 'n>(
+    node: Option<Node<'n>>,
+    expected_kind: &str,
+) -> Result<Node<'n>, ParseError> {
+    match node {
+        None => Err(ParseError::MissingExpectedNodeKind(
+            expected_kind.to_string(),
+        )),
+        Some(node) => {
+            if node.kind() != expected_kind {
+                Err(ParseError::WrongNodeKind(
+                    expected_kind.to_string(),
+                    node.kind().to_string(),
+                ))
+            } else {
+                Ok(node)
+            }
+        }
+    }
 }

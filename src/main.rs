@@ -14,7 +14,7 @@ mod settings;
 #[cfg(feature = "remarkable")]
 mod remarkable;
 
-use crate::browser_core::BrowserCore;
+use crate::browser_core::{BrowserCore, BrowserState};
 use crate::settings::load_settings;
 
 pub const CANVAS_WIDTH: u32 = 1404;
@@ -46,6 +46,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut browser = BrowserCore::new(settings.clone());
     browser.navigate_to(&url).await;
 
+    if let BrowserState::PageError { url: _, error } = browser.state {
+        error!(
+            "Error loading page! Cannot render the result. Reason: {}",
+            error
+        );
+        process::exit(1);
+    }
+
     spawn_blocking(move || {
         for page in browser.get_pages().iter().enumerate() {
             let (page_idx, page_canvas) = page;
@@ -53,7 +61,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let file_path = format!("./output/page-{}.png", page_idx);
             page_canvas.save(&file_path).expect("Failed to save image");
         }
-    });
+    })
+    .await?;
 
     info!("Done");
 
