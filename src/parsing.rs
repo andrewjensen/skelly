@@ -1,3 +1,4 @@
+use htmd::{Element, HtmlToMarkdown};
 use thiserror::Error;
 use tree_sitter::{Node, Parser};
 
@@ -56,7 +57,11 @@ pub enum ParseError {
 pub fn parse_webpage(page_html: &str) -> Result<Document, ParseError> {
     // HACK: we're parsing from HTML to markdown, then parsing that markdown
     // We should eventually consolidate and just work with a single intermediate representation
-    let page_markdown = htmd::convert(page_html);
+
+    let converter = HtmlToMarkdown::builder()
+        .add_handler(vec!["script"], |_: Element| None)
+        .build();
+    let page_markdown = converter.convert(page_html);
     if page_markdown.is_err() {
         return Err(ParseError::HtmdError);
     }
