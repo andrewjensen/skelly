@@ -6,11 +6,14 @@ use cosmic_text::{
 use image::{Pixel, Rgba, RgbaImage};
 use log::info;
 
+use crate::keyboard::{add_keyboard_overlay, KeyboardState};
 use crate::layout::split_runs_into_pages;
 use crate::parsing::{Block, Document};
 use crate::settings::RenderingSettings;
 
 use crate::{CANVAS_HEIGHT, CANVAS_MARGIN_BOTTOM, CANVAS_MARGIN_TOP, CANVAS_WIDTH, DEBUG_LAYOUT};
+
+const ADD_KEYBOARD_OVERLAY: bool = true;
 
 pub struct Renderer<'a> {
     rendering_settings: &'a RenderingSettings,
@@ -118,6 +121,10 @@ impl<'a> Renderer<'a> {
                     Rgba([0xFF, 0x00, 0x00, 0xFF]),
                     &mut page_canvas,
                 );
+            }
+
+            if ADD_KEYBOARD_OVERLAY {
+                add_keyboard_overlay(&mut page_canvas, KeyboardState::Normal);
             }
 
             page_canvases.push(page_canvas);
