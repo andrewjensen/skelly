@@ -1,4 +1,5 @@
 use axum::http::StatusCode;
+use axum::response::{Html, IntoResponse};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use cgmath::Point2;
@@ -80,19 +81,17 @@ impl RemarkableApp {
 
         let web_server_join = tokio::spawn(async move {
             info!("Starting web server...");
-            let web_server = Router::new()
-                .route("/", get(|| async { "Hello from Skelly!" }))
-                .route(
-                    "/navigate",
-                    post(|Json(payload): Json<NavigateCommand>| async move {
-                        app_tx_web
-                            .send(AppEvent::Navigate(payload.clone()))
-                            .await
-                            .unwrap();
+            let web_server = Router::new().route("/", get(serve_web_ui)).route(
+                "/navigate",
+                post(|Json(payload): Json<NavigateCommand>| async move {
+                    app_tx_web
+                        .send(AppEvent::Navigate(payload.clone()))
+                        .await
+                        .unwrap();
 
-                        StatusCode::OK
-                    }),
-                );
+                    StatusCode::OK
+                }),
+            );
             let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
             axum::serve(listener, web_server).await.unwrap();
         });
@@ -204,4 +203,11 @@ impl RemarkableApp {
             true,
         );
     }
+}
+
+async fn serve_web_ui() -> Html<String> {
+    let html = include_bytes!("../../assets/web_ui.html");
+    let html_string: String = String::from_utf8_lossy(html).to_string();
+
+    Html(html_string)
 }
