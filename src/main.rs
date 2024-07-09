@@ -55,6 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         process::exit(1);
     }
 
+    info!("Saving pages to PNG files...");
     spawn_blocking(move || {
         for page in browser.get_pages().iter().enumerate() {
             let (page_idx, page_canvas) = page;

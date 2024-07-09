@@ -1,6 +1,6 @@
+use cosmic_text::{Attrs, Buffer, Color, FontSystem, Metrics, Shaping, SwashCache, Wrap};
 use image::{Pixel, Rgba, RgbaImage};
 use log::info;
-// use cosmic_text::swash::
 
 pub enum KeyboardState {
     Normal,
@@ -76,11 +76,16 @@ pub enum KeyCode {
 }
 
 const KEYBOARD_MARGIN_Y: u32 = 100;
-const KEY_UNIT_WIDTH: u32 = 80;
-const KEY_UNIT_HEIGHT: u32 = 60;
+const KEY_UNIT_WIDTH: u32 = 100;
+const KEY_UNIT_HEIGHT: u32 = 80;
 const KEY_GUTTER: u32 = 10;
 
-pub fn add_keyboard_overlay(screen: &mut RgbaImage, keyboard_state: KeyboardState) {
+pub fn add_keyboard_overlay(
+    screen: &mut RgbaImage,
+    font_system: &mut FontSystem,
+    cache: &mut SwashCache,
+    keyboard_state: KeyboardState,
+) {
     let keys = get_keys(&keyboard_state);
 
     let keyboard_keys_height =
@@ -99,25 +104,71 @@ pub fn add_keyboard_overlay(screen: &mut RgbaImage, keyboard_state: KeyboardStat
         }
     }
 
+    let metrics = Metrics::new(40.0, 48.0);
+    let attrs = Attrs::new().metrics(metrics);
+    let text_color = Color::rgba(0xFF, 0xFF, 0xFF, 0xFF);
+
+    let mut buffer = Buffer::new_empty(metrics);
+
+    buffer.set_size(font_system, None, None);
+    buffer.set_wrap(font_system, Wrap::None);
+
     // Render each key
     let key_background_color = Rgba([0, 0, 0, 255]);
     for (line_idx, key_line) in keys.iter().enumerate() {
         for (key_idx, key) in key_line.iter().enumerate() {
-            let x = (KEY_UNIT_WIDTH + KEY_GUTTER) * key_idx as u32;
-            let y = keyboard_offset_y
+            let top_left_x = (KEY_UNIT_WIDTH + KEY_GUTTER) * key_idx as u32;
+            let top_left_y = keyboard_offset_y
                 + KEYBOARD_MARGIN_Y
                 + (KEY_UNIT_HEIGHT + KEY_GUTTER) * line_idx as u32;
 
             // Render key background
-            for key_x in x..x + KEY_UNIT_WIDTH {
-                for key_y in y..y + KEY_UNIT_HEIGHT {
+            for key_x in top_left_x..top_left_x + KEY_UNIT_WIDTH {
+                for key_y in top_left_y..top_left_y + KEY_UNIT_HEIGHT {
                     screen.put_pixel(key_x, key_y, key_background_color);
                 }
             }
 
             // Render key text
-            let _key_text = get_key_text(key).unwrap();
-            // info!("Render key text: {}", key_text);
+            buffer.lines.clear();
+            let key_text = get_key_text(key).unwrap();
+            buffer.set_text(font_system, key_text, attrs, Shaping::Basic);
+            buffer.shape_until_scroll(font_system, false);
+            let layout_run = buffer.layout_runs().next().unwrap();
+            let text_width = layout_run.line_w;
+            let text_height = 48.0;
+
+            buffer.draw(
+                font_system,
+                cache,
+                text_color,
+                |buffer_x, buffer_y, _, _, color| {
+                    let canvas_x = buffer_x + (top_left_x as i32) + (KEY_UNIT_WIDTH as i32 / 2)
+                        - ((text_width.round() / 2.0) as i32);
+
+                    let canvas_y = buffer_y + (top_left_y as i32) + (KEY_UNIT_HEIGHT as i32 / 2)
+                        - (text_height as i32 / 2);
+
+                    if canvas_x < 0 || canvas_x >= screen.width() as i32 {
+                        return;
+                    }
+
+                    if canvas_y < 0 || canvas_y >= screen.height() as i32 {
+                        return;
+                    }
+
+                    let canvas_x = canvas_x as u32;
+                    let canvas_y = canvas_y as u32;
+
+                    let (fg_r, fg_g, fg_b, fg_a) = color.as_rgba_tuple();
+                    let fg = Rgba([fg_r, fg_g, fg_b, fg_a]);
+
+                    let bg = screen.get_pixel(canvas_x, canvas_y);
+                    let mut result = bg.clone();
+                    result.blend(&fg);
+                    screen.put_pixel(canvas_x, canvas_y, result);
+                },
+            );
         }
     }
 }

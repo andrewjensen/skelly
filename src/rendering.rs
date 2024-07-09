@@ -35,13 +35,8 @@ impl<'a> Renderer<'a> {
         let mut buffer = Buffer::new_empty(metrics.scale(display_scale));
 
         let buffer_width = CANVAS_WIDTH - rendering_settings.screen_margin_x * 2;
-        let buffer_height = i32::MAX; // No limit on height so the buffer will calculate everything
 
-        buffer.set_size(
-            &mut font_system,
-            Some(buffer_width as f32),
-            Some(buffer_height as f32),
-        );
+        buffer.set_size(&mut font_system, Some(buffer_width as f32), None);
 
         Renderer {
             rendering_settings,
@@ -124,7 +119,13 @@ impl<'a> Renderer<'a> {
             }
 
             if ADD_KEYBOARD_OVERLAY {
-                add_keyboard_overlay(&mut page_canvas, KeyboardState::Normal);
+                add_keyboard_overlay(
+                    &mut page_canvas,
+                    &mut self.font_system,
+                    &mut self.swash_cache,
+                    KeyboardState::Normal,
+                    // KeyboardState::Shift,
+                );
             }
 
             page_canvases.push(page_canvas);
