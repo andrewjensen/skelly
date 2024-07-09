@@ -59,7 +59,7 @@ pub fn parse_webpage(page_html: &str) -> Result<Document, ParseError> {
     // We should eventually consolidate and just work with a single intermediate representation
 
     let converter = HtmlToMarkdown::builder()
-        .add_handler(vec!["script"], |_: Element| None)
+        .add_handler(vec!["script", "title"], |_: Element| None)
         .build();
     let page_markdown = converter.convert(page_html);
     if page_markdown.is_err() {
