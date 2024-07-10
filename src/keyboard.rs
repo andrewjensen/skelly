@@ -7,6 +7,12 @@ pub enum KeyboardState {
     Shift,
 }
 
+pub struct PositionedKey {
+    pub key: KeyCode,
+    pub position: (u32, u32),
+    pub size: (u32, u32),
+}
+
 pub enum KeyCode {
     // Lowercase
     LowercaseA,
@@ -73,12 +79,25 @@ pub enum KeyCode {
     Digit7,
     Digit8,
     Digit9,
+    // Symbols
+    Semicolon,
+    Comma,
+    Period,
+    Slash,
+    Space,
+    Shift,
 }
 
-const KEYBOARD_MARGIN_Y: u32 = 100;
+const KEYBOARD_MARGIN_Y: u32 = 40;
 const KEY_UNIT_WIDTH: u32 = 100;
 const KEY_UNIT_HEIGHT: u32 = 80;
 const KEY_GUTTER: u32 = 10;
+const KEYBOARD_COLUMNS: u32 = 10;
+const KEYBOARD_ROWS: u32 = 5;
+
+const COLOR_KEYBOARD_BACKGROUND: Rgba<u8> = Rgba([0xAA, 0xAA, 0xAA, 0xFF]);
+const COLOR_KEY_BACKGROUND: Rgba<u8> = Rgba([0x00, 0x00, 0x00, 0xFF]);
+const COLOR_KEY_FOREGROUND: Rgba<u8> = Rgba([0xFF, 0xFF, 0xFF, 0xFF]);
 
 pub fn add_keyboard_overlay(
     screen: &mut RgbaImage,
@@ -88,25 +107,30 @@ pub fn add_keyboard_overlay(
 ) {
     let keys = get_keys(&keyboard_state);
 
-    let keyboard_keys_height =
-        keys.len() as u32 * KEY_UNIT_HEIGHT + (keys.len() as u32 - 1) * KEY_GUTTER;
+    let keyboard_keys_width =
+        KEYBOARD_COLUMNS * KEY_UNIT_WIDTH + (KEYBOARD_COLUMNS - 1) * KEY_GUTTER;
+    let keyboard_keys_height = KEYBOARD_ROWS * KEY_UNIT_HEIGHT + (KEYBOARD_ROWS - 1) * KEY_GUTTER;
     let keyboard_total_height = keyboard_keys_height + (KEYBOARD_MARGIN_Y * 2);
+
+    let keyboard_offset_x = (screen.width() - keyboard_keys_width) / 2;
+    // let keyboard_offset_x = 5;
     let keyboard_offset_y = screen.height() - keyboard_total_height;
 
     // Render the background
-    let background_color = match &keyboard_state {
-        KeyboardState::Normal => Rgba([255, 0, 0, 255]),
-        KeyboardState::Shift => Rgba([0, 0, 255, 255]),
-    };
     for x in 0..screen.width() {
         for y in keyboard_offset_y..keyboard_total_height + keyboard_offset_y {
-            screen.put_pixel(x, y, background_color);
+            screen.put_pixel(x, y, COLOR_KEYBOARD_BACKGROUND);
         }
     }
 
     let metrics = Metrics::new(40.0, 48.0);
     let attrs = Attrs::new().metrics(metrics);
-    let text_color = Color::rgba(0xFF, 0xFF, 0xFF, 0xFF);
+    let text_color = Color::rgba(
+        COLOR_KEY_FOREGROUND[0],
+        COLOR_KEY_FOREGROUND[1],
+        COLOR_KEY_FOREGROUND[2],
+        COLOR_KEY_FOREGROUND[3],
+    );
 
     let mut buffer = Buffer::new_empty(metrics);
 
@@ -114,168 +138,299 @@ pub fn add_keyboard_overlay(
     buffer.set_wrap(font_system, Wrap::None);
 
     // Render each key
-    let key_background_color = Rgba([0, 0, 0, 255]);
-    for (line_idx, key_line) in keys.iter().enumerate() {
-        for (key_idx, key) in key_line.iter().enumerate() {
-            let top_left_x = (KEY_UNIT_WIDTH + KEY_GUTTER) * key_idx as u32;
-            let top_left_y = keyboard_offset_y
-                + KEYBOARD_MARGIN_Y
-                + (KEY_UNIT_HEIGHT + KEY_GUTTER) * line_idx as u32;
+    for positioned_key in keys.iter() {
+        let key_grid_x = positioned_key.position.0;
+        let key_grid_y = positioned_key.position.1;
+        let key_grid_width = positioned_key.size.0;
+        let key_grid_height = positioned_key.size.1;
 
-            // Render key background
-            for key_x in top_left_x..top_left_x + KEY_UNIT_WIDTH {
-                for key_y in top_left_y..top_left_y + KEY_UNIT_HEIGHT {
-                    screen.put_pixel(key_x, key_y, key_background_color);
-                }
+        let top_left_x = keyboard_offset_x + (KEY_UNIT_WIDTH + KEY_GUTTER) * key_grid_x;
+        let top_left_y =
+            keyboard_offset_y + KEYBOARD_MARGIN_Y + (KEY_UNIT_HEIGHT + KEY_GUTTER) * key_grid_y;
+
+        let key_width = KEY_UNIT_WIDTH * key_grid_width + KEY_GUTTER * (key_grid_width - 1);
+        let key_height = KEY_UNIT_HEIGHT * key_grid_height + KEY_GUTTER * (key_grid_height - 1);
+
+        // Render key background
+        for key_x in top_left_x..top_left_x + key_width {
+            for key_y in top_left_y..top_left_y + key_height {
+                screen.put_pixel(key_x, key_y, COLOR_KEY_BACKGROUND);
             }
-
-            // Render key text
-            buffer.lines.clear();
-            let key_text = get_key_text(key).unwrap();
-            buffer.set_text(font_system, key_text, attrs, Shaping::Basic);
-            buffer.shape_until_scroll(font_system, false);
-            let layout_run = buffer.layout_runs().next().unwrap();
-            let text_width = layout_run.line_w;
-            let text_height = 48.0;
-
-            buffer.draw(
-                font_system,
-                cache,
-                text_color,
-                |buffer_x, buffer_y, _, _, color| {
-                    let canvas_x = buffer_x + (top_left_x as i32) + (KEY_UNIT_WIDTH as i32 / 2)
-                        - ((text_width.round() / 2.0) as i32);
-
-                    let canvas_y = buffer_y + (top_left_y as i32) + (KEY_UNIT_HEIGHT as i32 / 2)
-                        - (text_height as i32 / 2);
-
-                    if canvas_x < 0 || canvas_x >= screen.width() as i32 {
-                        return;
-                    }
-
-                    if canvas_y < 0 || canvas_y >= screen.height() as i32 {
-                        return;
-                    }
-
-                    let canvas_x = canvas_x as u32;
-                    let canvas_y = canvas_y as u32;
-
-                    let (fg_r, fg_g, fg_b, fg_a) = color.as_rgba_tuple();
-                    let fg = Rgba([fg_r, fg_g, fg_b, fg_a]);
-
-                    let bg = screen.get_pixel(canvas_x, canvas_y);
-                    let mut result = bg.clone();
-                    result.blend(&fg);
-                    screen.put_pixel(canvas_x, canvas_y, result);
-                },
-            );
         }
+
+        // Render key text
+        buffer.lines.clear();
+        let key_text = get_key_text(&positioned_key.key).unwrap();
+        buffer.set_text(font_system, key_text, attrs, Shaping::Basic);
+        buffer.shape_until_scroll(font_system, false);
+        let layout_run = buffer.layout_runs().next().unwrap();
+        let text_width = layout_run.line_w;
+        let text_height = 48.0;
+
+        buffer.draw(
+            font_system,
+            cache,
+            text_color,
+            |buffer_x, buffer_y, _, _, color| {
+                let canvas_x = buffer_x + (top_left_x as i32) + (key_width as i32 / 2)
+                    - ((text_width.round() / 2.0) as i32);
+
+                let canvas_y = buffer_y + (top_left_y as i32) + (key_height as i32 / 2)
+                    - (text_height as i32 / 2);
+
+                if canvas_x < 0 || canvas_x >= screen.width() as i32 {
+                    return;
+                }
+
+                if canvas_y < 0 || canvas_y >= screen.height() as i32 {
+                    return;
+                }
+
+                let canvas_x = canvas_x as u32;
+                let canvas_y = canvas_y as u32;
+
+                let (fg_r, fg_g, fg_b, fg_a) = color.as_rgba_tuple();
+                let fg = Rgba([fg_r, fg_g, fg_b, fg_a]);
+
+                let bg = screen.get_pixel(canvas_x, canvas_y);
+                let mut result = bg.clone();
+                result.blend(&fg);
+                screen.put_pixel(canvas_x, canvas_y, result);
+            },
+        );
     }
 }
 
-fn get_keys(state: &KeyboardState) -> Vec<Vec<KeyCode>> {
+fn get_keys(state: &KeyboardState) -> Vec<PositionedKey> {
     match state {
         KeyboardState::Normal => get_normal_keys(),
         KeyboardState::Shift => get_shift_keys(),
     }
 }
 
-fn get_normal_keys() -> Vec<Vec<KeyCode>> {
+fn get_normal_keys() -> Vec<PositionedKey> {
     vec![
-        vec![
-            KeyCode::Digit1,
-            KeyCode::Digit2,
-            KeyCode::Digit3,
-            KeyCode::Digit4,
-            KeyCode::Digit5,
-            KeyCode::Digit6,
-            KeyCode::Digit7,
-            KeyCode::Digit8,
-            KeyCode::Digit9,
-            KeyCode::Digit0,
-        ],
-        vec![
-            KeyCode::LowercaseQ,
-            KeyCode::LowercaseW,
-            KeyCode::LowercaseE,
-            KeyCode::LowercaseR,
-            KeyCode::LowercaseT,
-            KeyCode::LowercaseY,
-            KeyCode::LowercaseU,
-            KeyCode::LowercaseI,
-            KeyCode::LowercaseO,
-            KeyCode::LowercaseP,
-        ],
-        vec![
-            KeyCode::LowercaseA,
-            KeyCode::LowercaseS,
-            KeyCode::LowercaseD,
-            KeyCode::LowercaseF,
-            KeyCode::LowercaseG,
-            KeyCode::LowercaseH,
-            KeyCode::LowercaseJ,
-            KeyCode::LowercaseK,
-            KeyCode::LowercaseL,
-        ],
-        vec![
-            KeyCode::LowercaseZ,
-            KeyCode::LowercaseX,
-            KeyCode::LowercaseC,
-            KeyCode::LowercaseV,
-            KeyCode::LowercaseB,
-            KeyCode::LowercaseN,
-            KeyCode::LowercaseM,
-        ],
+        // Numbers
+        PositionedKey {
+            key: KeyCode::Digit1,
+            position: (0, 0),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Digit2,
+            position: (1, 0),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Digit3,
+            position: (2, 0),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Digit4,
+            position: (3, 0),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Digit5,
+            position: (4, 0),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Digit6,
+            position: (5, 0),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Digit7,
+            position: (6, 0),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Digit8,
+            position: (7, 0),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Digit9,
+            position: (8, 0),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Digit0,
+            position: (9, 0),
+            size: (1, 1),
+        },
+        // Letters, row 1
+        PositionedKey {
+            key: KeyCode::LowercaseQ,
+            position: (0, 1),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseW,
+            position: (1, 1),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseE,
+            position: (2, 1),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseR,
+            position: (3, 1),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseT,
+            position: (4, 1),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseY,
+            position: (5, 1),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseU,
+            position: (6, 1),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseI,
+            position: (7, 1),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseO,
+            position: (8, 1),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseP,
+            position: (9, 1),
+            size: (1, 1),
+        },
+        // Letters, row 2
+        PositionedKey {
+            key: KeyCode::LowercaseA,
+            position: (0, 2),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseS,
+            position: (1, 2),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseD,
+            position: (2, 2),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseF,
+            position: (3, 2),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseG,
+            position: (4, 2),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseH,
+            position: (5, 2),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseJ,
+            position: (6, 2),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseK,
+            position: (7, 2),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseL,
+            position: (8, 2),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Semicolon,
+            position: (9, 2),
+            size: (1, 1),
+        },
+        // Letters, row 3
+        PositionedKey {
+            key: KeyCode::LowercaseZ,
+            position: (0, 3),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseX,
+            position: (1, 3),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseC,
+            position: (2, 3),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseV,
+            position: (3, 3),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseB,
+            position: (4, 3),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseN,
+            position: (5, 3),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LowercaseM,
+            position: (6, 3),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Comma,
+            position: (7, 3),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Period,
+            position: (8, 3),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Slash,
+            position: (9, 3),
+            size: (1, 1),
+        },
+        // Symbol row
+        PositionedKey {
+            key: KeyCode::Shift,
+            position: (0, 4),
+            size: (2, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Space,
+            position: (2, 4),
+            size: (8, 1),
+        },
     ]
 }
 
-fn get_shift_keys() -> Vec<Vec<KeyCode>> {
-    vec![
-        vec![
-            KeyCode::Digit1,
-            KeyCode::Digit2,
-            KeyCode::Digit3,
-            KeyCode::Digit4,
-            KeyCode::Digit5,
-            KeyCode::Digit6,
-            KeyCode::Digit7,
-            KeyCode::Digit8,
-            KeyCode::Digit9,
-            KeyCode::Digit0,
-        ],
-        vec![
-            KeyCode::UppercaseQ,
-            KeyCode::UppercaseW,
-            KeyCode::UppercaseE,
-            KeyCode::UppercaseR,
-            KeyCode::UppercaseT,
-            KeyCode::UppercaseY,
-            KeyCode::UppercaseU,
-            KeyCode::UppercaseI,
-            KeyCode::UppercaseO,
-            KeyCode::UppercaseP,
-        ],
-        vec![
-            KeyCode::UppercaseA,
-            KeyCode::UppercaseS,
-            KeyCode::UppercaseD,
-            KeyCode::UppercaseF,
-            KeyCode::UppercaseG,
-            KeyCode::UppercaseH,
-            KeyCode::UppercaseJ,
-            KeyCode::UppercaseK,
-            KeyCode::UppercaseL,
-        ],
-        vec![
-            KeyCode::UppercaseZ,
-            KeyCode::UppercaseX,
-            KeyCode::UppercaseC,
-            KeyCode::UppercaseV,
-            KeyCode::UppercaseB,
-            KeyCode::UppercaseN,
-            KeyCode::UppercaseM,
-        ],
-    ]
+fn get_shift_keys() -> Vec<PositionedKey> {
+    // TODO
+    vec![]
 }
 
 fn get_key_text(key_code: &KeyCode) -> Option<&'static str> {
@@ -345,5 +500,12 @@ fn get_key_text(key_code: &KeyCode) -> Option<&'static str> {
         KeyCode::Digit7 => Some("7"),
         KeyCode::Digit8 => Some("8"),
         KeyCode::Digit9 => Some("9"),
+        // Symbols
+        KeyCode::Semicolon => Some(";"),
+        KeyCode::Comma => Some(","),
+        KeyCode::Period => Some("."),
+        KeyCode::Slash => Some("/"),
+        KeyCode::Space => Some("space"),
+        KeyCode::Shift => Some("shift"),
     }
 }
