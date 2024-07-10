@@ -86,13 +86,15 @@ pub enum KeyCode {
     Slash,
     Space,
     Shift,
+    Backspace,
+    Return,
 }
 
 const KEYBOARD_MARGIN_Y: u32 = 40;
 const KEY_UNIT_WIDTH: u32 = 100;
 const KEY_UNIT_HEIGHT: u32 = 80;
 const KEY_GUTTER: u32 = 10;
-const KEYBOARD_COLUMNS: u32 = 10;
+const KEYBOARD_COLUMNS: u32 = 12;
 const KEYBOARD_ROWS: u32 = 5;
 
 const COLOR_KEYBOARD_BACKGROUND: Rgba<u8> = Rgba([0xAA, 0xAA, 0xAA, 0xFF]);
@@ -261,6 +263,11 @@ fn get_normal_keys() -> Vec<PositionedKey> {
             position: (9, 0),
             size: (1, 1),
         },
+        PositionedKey {
+            key: KeyCode::Backspace,
+            position: (10, 0),
+            size: (2, 1),
+        },
         // Letters, row 1
         PositionedKey {
             key: KeyCode::LowercaseQ,
@@ -311,6 +318,11 @@ fn get_normal_keys() -> Vec<PositionedKey> {
             key: KeyCode::LowercaseP,
             position: (9, 1),
             size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Return,
+            position: (10, 1),
+            size: (2, 4),
         },
         // Letters, row 2
         PositionedKey {
@@ -507,5 +519,7 @@ fn get_key_text(key_code: &KeyCode) -> Option<&'static str> {
         KeyCode::Slash => Some("/"),
         KeyCode::Space => Some("space"),
         KeyCode::Shift => Some("shift"),
+        KeyCode::Backspace => Some("delete"),
+        KeyCode::Return => Some("return"),
     }
 }
