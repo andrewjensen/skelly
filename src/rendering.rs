@@ -13,13 +13,12 @@ use crate::settings::RenderingSettings;
 
 use crate::{CANVAS_HEIGHT, CANVAS_MARGIN_BOTTOM, CANVAS_MARGIN_TOP, CANVAS_WIDTH, DEBUG_LAYOUT};
 
-const ADD_KEYBOARD_OVERLAY: bool = true;
-
 pub struct Renderer<'a> {
     rendering_settings: &'a RenderingSettings,
     buffer: Buffer,
     font_system: FontSystem,
     swash_cache: SwashCache,
+    keyboard_state: KeyboardState,
 }
 
 impl<'a> Renderer<'a> {
@@ -43,6 +42,7 @@ impl<'a> Renderer<'a> {
             buffer,
             font_system,
             swash_cache,
+            keyboard_state: KeyboardState::Normal, // TODO: change to Hidden on initialize
         }
     }
 
@@ -118,15 +118,12 @@ impl<'a> Renderer<'a> {
                 );
             }
 
-            if ADD_KEYBOARD_OVERLAY {
-                add_keyboard_overlay(
-                    &mut page_canvas,
-                    &mut self.font_system,
-                    &mut self.swash_cache,
-                    KeyboardState::Normal,
-                    // KeyboardState::Shift,
-                );
-            }
+            add_keyboard_overlay(
+                &mut page_canvas,
+                &mut self.font_system,
+                &mut self.swash_cache,
+                &self.keyboard_state,
+            );
 
             page_canvases.push(page_canvas);
         }

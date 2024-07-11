@@ -3,6 +3,7 @@ use image::{Pixel, Rgba, RgbaImage};
 use log::info;
 
 pub enum KeyboardState {
+    Hidden,
     Normal,
     Shift,
 }
@@ -80,10 +81,24 @@ pub enum KeyCode {
     Digit8,
     Digit9,
     // Symbols
+    ExclamationMark,
+    At,
+    Hash,
+    Dollar,
+    Percent,
+    Caret,
+    Ampersand,
+    Asterisk,
+    LeftParenthesis,
+    RightParenthesis,
     Semicolon,
+    Colon,
     Comma,
     Period,
     Slash,
+    LessThan,
+    GreaterThan,
+    QuestionMark,
     Space,
     Shift,
     Backspace,
@@ -105,9 +120,13 @@ pub fn add_keyboard_overlay(
     screen: &mut RgbaImage,
     font_system: &mut FontSystem,
     cache: &mut SwashCache,
-    keyboard_state: KeyboardState,
+    keyboard_state: &KeyboardState,
 ) {
-    let keys = get_keys(&keyboard_state);
+    if let KeyboardState::Hidden = keyboard_state {
+        return;
+    }
+
+    let keys = get_keys(keyboard_state);
 
     let keyboard_keys_width =
         KEYBOARD_COLUMNS * KEY_UNIT_WIDTH + (KEYBOARD_COLUMNS - 1) * KEY_GUTTER;
@@ -205,6 +224,7 @@ pub fn add_keyboard_overlay(
 
 fn get_keys(state: &KeyboardState) -> Vec<PositionedKey> {
     match state {
+        KeyboardState::Hidden => vec![],
         KeyboardState::Normal => get_normal_keys(),
         KeyboardState::Shift => get_shift_keys(),
     }
@@ -441,8 +461,233 @@ fn get_normal_keys() -> Vec<PositionedKey> {
 }
 
 fn get_shift_keys() -> Vec<PositionedKey> {
-    // TODO
-    vec![]
+    vec![
+        // Numbers
+        PositionedKey {
+            key: KeyCode::ExclamationMark,
+            position: (0, 0),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::At,
+            position: (1, 0),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Hash,
+            position: (2, 0),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Dollar,
+            position: (3, 0),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Percent,
+            position: (4, 0),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Caret,
+            position: (5, 0),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Ampersand,
+            position: (6, 0),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Asterisk,
+            position: (7, 0),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LeftParenthesis,
+            position: (8, 0),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::RightParenthesis,
+            position: (9, 0),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Backspace,
+            position: (10, 0),
+            size: (2, 1),
+        },
+        // Letters, row 1
+        PositionedKey {
+            key: KeyCode::UppercaseQ,
+            position: (0, 1),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseW,
+            position: (1, 1),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseE,
+            position: (2, 1),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseR,
+            position: (3, 1),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseT,
+            position: (4, 1),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseY,
+            position: (5, 1),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseU,
+            position: (6, 1),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseI,
+            position: (7, 1),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseO,
+            position: (8, 1),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseP,
+            position: (9, 1),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Return,
+            position: (10, 1),
+            size: (2, 4),
+        },
+        // Letters, row 2
+        PositionedKey {
+            key: KeyCode::UppercaseA,
+            position: (0, 2),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseS,
+            position: (1, 2),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseD,
+            position: (2, 2),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseF,
+            position: (3, 2),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseG,
+            position: (4, 2),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseH,
+            position: (5, 2),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseJ,
+            position: (6, 2),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseK,
+            position: (7, 2),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseL,
+            position: (8, 2),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Colon,
+            position: (9, 2),
+            size: (1, 1),
+        },
+        // Letters, row 3
+        PositionedKey {
+            key: KeyCode::UppercaseZ,
+            position: (0, 3),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseX,
+            position: (1, 3),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseC,
+            position: (2, 3),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseV,
+            position: (3, 3),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseB,
+            position: (4, 3),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseN,
+            position: (5, 3),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::UppercaseM,
+            position: (6, 3),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::LessThan,
+            position: (7, 3),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::GreaterThan,
+            position: (8, 3),
+            size: (1, 1),
+        },
+        PositionedKey {
+            key: KeyCode::QuestionMark,
+            position: (9, 3),
+            size: (1, 1),
+        },
+        // Symbol row
+        PositionedKey {
+            key: KeyCode::Shift,
+            position: (0, 4),
+            size: (2, 1),
+        },
+        PositionedKey {
+            key: KeyCode::Space,
+            position: (2, 4),
+            size: (8, 1),
+        },
+    ]
 }
 
 fn get_key_text(key_code: &KeyCode) -> Option<&'static str> {
@@ -513,10 +758,24 @@ fn get_key_text(key_code: &KeyCode) -> Option<&'static str> {
         KeyCode::Digit8 => Some("8"),
         KeyCode::Digit9 => Some("9"),
         // Symbols
+        KeyCode::ExclamationMark => Some("!"),
+        KeyCode::At => Some("@"),
+        KeyCode::Hash => Some("#"),
+        KeyCode::Dollar => Some("$"),
+        KeyCode::Percent => Some("%"),
+        KeyCode::Caret => Some("^"),
+        KeyCode::Ampersand => Some("&"),
+        KeyCode::Asterisk => Some("*"),
+        KeyCode::LeftParenthesis => Some("("),
+        KeyCode::RightParenthesis => Some(")"),
         KeyCode::Semicolon => Some(";"),
+        KeyCode::Colon => Some(":"),
         KeyCode::Comma => Some(","),
         KeyCode::Period => Some("."),
         KeyCode::Slash => Some("/"),
+        KeyCode::LessThan => Some("<"),
+        KeyCode::GreaterThan => Some(">"),
+        KeyCode::QuestionMark => Some("?"),
         KeyCode::Space => Some("space"),
         KeyCode::Shift => Some("shift"),
         KeyCode::Backspace => Some("delete"),
