@@ -22,8 +22,7 @@ use crate::CANVAS_WIDTH;
 enum AppEvent {
     Initialize,
     Navigate(NavigateCommand),
-    PreviousPage,
-    NextPage,
+    Tap { x: u32, y: u32 },
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -67,13 +66,12 @@ impl RemarkableApp {
                 } = event
                 {
                     if let MultitouchEvent::Press { finger } = multitouch_event {
-                        let finger_x = finger.pos.x as u32;
-                        if finger_x < (CANVAS_WIDTH / 3) {
-                            // Close to the left edge
-                            app_tx.blocking_send(AppEvent::PreviousPage).unwrap();
-                        } else {
-                            app_tx.blocking_send(AppEvent::NextPage).unwrap();
-                        }
+                        app_tx
+                            .blocking_send(AppEvent::Tap {
+                                x: finger.pos.x as u32,
+                                y: finger.pos.y as u32,
+                            })
+                            .unwrap();
                     }
                 }
             }
@@ -148,32 +146,8 @@ impl RemarkableApp {
                         }
                     }
                 }
-                AppEvent::PreviousPage => {
-                    info!("Received event: Previous page");
-
-                    match self.browser.get_pages().get(self.current_page_idx - 1) {
-                        Some(page_canvas) => {
-                            self.current_page_idx -= 1;
-                            self.render_page(&page_canvas.clone());
-                            self.refresh_screen();
-                        }
-                        None => {
-                            warn!("No more pages to display");
-                        }
-                    }
-                }
-                AppEvent::NextPage => {
-                    info!("Received event: Next page");
-                    match self.browser.get_pages().get(self.current_page_idx + 1) {
-                        Some(page_canvas) => {
-                            self.current_page_idx += 1;
-                            self.render_page(&page_canvas.clone());
-                            self.refresh_screen();
-                        }
-                        None => {
-                            warn!("No more pages to display");
-                        }
-                    }
+                AppEvent::Tap { x, y } => {
+                    self.handle_tap_on_screen(x, y);
                 }
             }
         }
@@ -182,6 +156,45 @@ impl RemarkableApp {
         web_server_join.await?;
 
         Ok(())
+    }
+
+    fn handle_tap_on_screen(&mut self, x: u32, y: u32) {
+        match self.browser.state {
+            BrowserState::ViewingPage {
+                url: _,
+                page_canvases: _,
+            } => {
+                if x < CANVAS_WIDTH / 3 {
+                    info!("Tap: Previous page");
+
+                    match self.browser.get_pages().get(self.current_page_idx - 1) {
+                        Some(page_canvas) => {
+                            self.current_page_idx -= 1;
+                            self.render_page(&page_canvas.clone());
+                            self.refresh_screen();
+                        }
+                        None => {
+                            warn!("No previous page to display, ignoring tap");
+                        }
+                    }
+                } else {
+                    info!("Tap: Next page");
+                    match self.browser.get_pages().get(self.current_page_idx + 1) {
+                        Some(page_canvas) => {
+                            self.current_page_idx += 1;
+                            self.render_page(&page_canvas.clone());
+                            self.refresh_screen();
+                        }
+                        None => {
+                            warn!("No next page to display, ignoring tap");
+                        }
+                    }
+                }
+            }
+            _ => {
+                info!("Ignoring tap event, not in viewing state");
+            }
+        };
     }
 
     fn render_page(&mut self, page_canvas: &RgbaImage) {
