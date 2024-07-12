@@ -1189,28 +1189,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
 
 [[package]]
-name = "minimalist-browser"
-version = "0.1.0"
-dependencies = [
- "axum",
- "cgmath",
- "cosmic-text",
- "env_logger 0.11.3",
- "htmd",
- "image",
- "libremarkable",
- "log",
- "once_cell",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tree-sitter",
- "tree-sitter-markdown",
-]
-
-[[package]]
 name = "miniz_oxide"
 version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2013,6 +1991,28 @@ name = "siphasher"
 version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "38b58827f4464d87d377d175e90bf58eb00fd8716ff0a62f80356b5e61555d0d"
+
+[[package]]
+name = "skelly"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "cgmath",
+ "cosmic-text",
+ "env_logger 0.11.3",
+ "htmd",
+ "image",
+ "libremarkable",
+ "log",
+ "once_cell",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tree-sitter",
+ "tree-sitter-markdown",
+]
 
 [[package]]
 name = "skrifa"
