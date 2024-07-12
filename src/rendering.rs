@@ -42,7 +42,7 @@ impl<'a> Renderer<'a> {
             buffer,
             font_system,
             swash_cache,
-            keyboard_state: KeyboardState::Normal, // TODO: change to Hidden on initialize
+            keyboard_state: KeyboardState::Hidden,
         }
     }
 
