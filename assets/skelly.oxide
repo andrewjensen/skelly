@@ -1,0 +1,5 @@
+{
+    "displayName": "Skelly",
+    "description": "A bare-bones web browser",
+    "bin": "/home/root/skelly"
+}
