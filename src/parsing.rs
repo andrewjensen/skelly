@@ -298,12 +298,14 @@ fn parse_link(node_link: &Node, source: &[u8]) -> Result<Link, ParseError> {
         .named_children(&mut cursor)
         .find(|child| child.kind() == "link_text");
 
-    let text: String = match node_link_text {
-        None => "(No link text)".to_string(),
-        Some(node_link_text) => match node_link_text.kind() {
-            "text" => node_link_text.utf8_text(source)?.to_string(),
-            _ => "(Complex link text)".to_string(),
-        },
+    let text = match node_link_text {
+        None => "(no link text)".to_string(),
+        Some(node_link_text) => {
+            let node_link_text_inner = expect_node_kind(node_link_text.named_child(0), "text")?;
+            let text = node_link_text_inner.utf8_text(source)?.to_string();
+
+            text
+        }
     };
 
     let node_link_destination = expect_node_kind(
@@ -426,6 +428,46 @@ mod test {
                         ],
                     }
                 ]
+            }
+        );
+    }
+
+    #[test]
+    fn test_simple_links() {
+        let content = r#"
+        <p>Here is a <a href="https://www.grovertoons.com/">link</a> and here is
+        <a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ">another one</a>.</p>
+        "#;
+        let input = create_html_document(content);
+        let document = parse_webpage(&input).unwrap();
+
+        assert_eq!(
+            document,
+            Document {
+                blocks: vec![Block::Paragraph {
+                    content: vec![
+                        Span::Text {
+                            content: "Here is a ".to_string(),
+                            style: SpanStyle::Normal,
+                        },
+                        Span::Link(Link {
+                            text: "link".to_string(),
+                            destination: "https://www.grovertoons.com/".to_string(),
+                        }),
+                        Span::Text {
+                            content: " and here is ".to_string(),
+                            style: SpanStyle::Normal,
+                        },
+                        Span::Link(Link {
+                            text: "another one".to_string(),
+                            destination: "https://www.youtube.com/watch?v=dQw4w9WgXcQ".to_string(),
+                        }),
+                        Span::Text {
+                            content: ".".to_string(),
+                            style: SpanStyle::Normal,
+                        },
+                    ],
+                }]
             }
         );
     }
