@@ -8,7 +8,7 @@ use log::info;
 
 use crate::keyboard::{add_keyboard_overlay, KeyboardState};
 use crate::layout::split_runs_into_pages;
-use crate::parsing::{Block, Document};
+use crate::parsing::{Block, Document, Span, SpanStyle};
 use crate::settings::RenderingSettings;
 
 use crate::{CANVAS_HEIGHT, CANVAS_MARGIN_BOTTOM, CANVAS_MARGIN_TOP, CANVAS_WIDTH, DEBUG_LAYOUT};
@@ -184,7 +184,29 @@ impl<'a> Renderer<'a> {
                     spans.push(("\n\n", attrs_this_heading));
                 }
                 Block::Paragraph { content } => {
-                    spans.push((content, attrs_paragraph));
+                    for span in content.iter() {
+                        match &span {
+                            &Span::Text {
+                                content,
+                                style: span_style,
+                            } => {
+                                let attrs = match span_style {
+                                    SpanStyle::Normal => attrs_paragraph,
+                                    SpanStyle::Bold => attrs_paragraph.weight(Weight::BOLD),
+                                    SpanStyle::Italic => attrs_paragraph.style(Style::Italic),
+                                    SpanStyle::BoldItalic => {
+                                        attrs_paragraph.weight(Weight::BOLD).style(Style::Italic)
+                                    }
+                                    _ => attrs_paragraph,
+                                };
+
+                                spans.push((&content, attrs));
+                            }
+                            &Span::Link(link) => {
+                                spans.push((&link.text, attrs_paragraph));
+                            }
+                        }
+                    }
                     spans.push(("\n\n", attrs_paragraph));
                 }
                 Block::List => {

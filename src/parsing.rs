@@ -1,20 +1,21 @@
 use htmd::{Element, HtmlToMarkdown};
+use log::info;
 use thiserror::Error;
 use tree_sitter::{Node, Parser};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Document {
     pub blocks: Vec<Block>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Block {
     Heading {
         level: u8,
         content: String,
     },
     Paragraph {
-        content: String,
+        content: Vec<Span>,
     },
     List,
     BlockQuote {
@@ -27,7 +28,22 @@ pub enum Block {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
+pub enum Span {
+    Text { content: String, style: SpanStyle },
+    Link(Link),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum SpanStyle {
+    Normal,
+    Bold,
+    Italic,
+    BoldItalic,
+    Code,
+}
+
+#[derive(Debug, PartialEq)]
 pub struct Link {
     pub destination: String,
     pub text: String,
@@ -156,9 +172,9 @@ fn parse_heading(node_heading: &Node, source: &[u8]) -> Result<Block, ParseError
 }
 
 fn parse_paragraph(node_paragraph: &Node, source: &[u8]) -> Result<Block, ParseError> {
-    Ok(Block::Paragraph {
-        content: temp_squash_block_text(node_paragraph, source)?,
-    })
+    let spans = flatten_child_spans(node_paragraph, &SpanStyle::Normal, source)?;
+
+    Ok(Block::Paragraph { content: spans })
 }
 
 fn parse_block_quote(node_block_quote: &Node, source: &[u8]) -> Result<Block, ParseError> {
@@ -192,6 +208,53 @@ fn parse_code_block(node_fenced_code_block: &Node, source: &[u8]) -> Result<Bloc
     let content = node_content_inner_text.utf8_text(source)?.to_string();
 
     Ok(Block::CodeBlock { language, content })
+}
+
+fn flatten_child_spans(
+    node_parent: &Node,
+    parent_style: &SpanStyle,
+    source: &[u8],
+) -> Result<Vec<Span>, ParseError> {
+    let mut overall_spans = vec![];
+
+    let mut cursor = node_parent.walk();
+    for node_child in node_parent.named_children(&mut cursor) {
+        let spans = parse_span(&node_child, parent_style, source)?;
+        for span in spans {
+            overall_spans.push(span);
+        }
+    }
+
+    Ok(overall_spans)
+}
+
+fn parse_span(
+    node_span: &Node,
+    parent_style: &SpanStyle,
+    source: &[u8],
+) -> Result<Vec<Span>, ParseError> {
+    match node_span.kind() {
+        "text" => {
+            let text = node_span.utf8_text(source)?.to_string();
+            Ok(vec![Span::Text {
+                content: text,
+                style: parent_style.clone(),
+            }])
+        }
+        "link" => {
+            let link = parse_link(node_span, source)?;
+            Ok(vec![Span::Link(link)])
+        }
+        "strong_emphasis" => flatten_child_spans(node_span, &SpanStyle::Bold, source),
+        "emphasis" => flatten_child_spans(node_span, &SpanStyle::Italic, source),
+        other_kind => {
+            let text = format!("[TODO: parse node `{}`]", other_kind);
+            Ok(vec![Span::Text {
+                content: text,
+                style: parent_style.clone(),
+            }])
+        }
+    }
 }
 
 fn temp_squash_block_text(node_parent: &Node, source: &[u8]) -> Result<String, ParseError> {
@@ -275,5 +338,95 @@ fn expect_node_kind<'s, 'n>(
                 Ok(node)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn create_html_document(inner_content: &str) -> String {
+        format!("<!doctype html><html><head><title>Document</title></head><body><article>{}</article></body></html>", inner_content)
+    }
+
+    #[test]
+    fn test_parse_simple() {
+        let content = r#"
+        <h1>My Document</h1>
+        <p>This is a paragraph.</p>
+        <p>This is another paragraph.</p>
+        "#;
+        let input = create_html_document(content);
+        let document = parse_webpage(&input).unwrap();
+
+        assert_eq!(
+            document,
+            Document {
+                blocks: vec![
+                    Block::Heading {
+                        level: 1,
+                        content: "My Document".to_string()
+                    },
+                    Block::Paragraph {
+                        content: vec![Span::Text {
+                            content: "This is a paragraph.".to_string(),
+                            style: SpanStyle::Normal,
+                        }],
+                    },
+                    Block::Paragraph {
+                        content: vec![Span::Text {
+                            content: "This is another paragraph.".to_string(),
+                            style: SpanStyle::Normal,
+                        }],
+                    }
+                ]
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_inline_styles() {
+        let content = r#"
+        <h1>My Document</h1>
+        <p>This is a paragraph containing <strong>lots</strong> of exciting <em>styles</em>.</p>
+        "#;
+        let input = create_html_document(content);
+        let document = parse_webpage(&input).unwrap();
+
+        assert_eq!(
+            document,
+            Document {
+                blocks: vec![
+                    Block::Heading {
+                        level: 1,
+                        content: "My Document".to_string()
+                    },
+                    Block::Paragraph {
+                        content: vec![
+                            Span::Text {
+                                content: "This is a paragraph containing ".to_string(),
+                                style: SpanStyle::Normal,
+                            },
+                            Span::Text {
+                                content: "lots".to_string(),
+                                style: SpanStyle::Bold,
+                            },
+                            Span::Text {
+                                content: " of exciting ".to_string(),
+                                style: SpanStyle::Normal,
+                            },
+                            Span::Text {
+                                content: "styles".to_string(),
+                                style: SpanStyle::Italic,
+                            },
+                            Span::Text {
+                                content: ".".to_string(),
+                                style: SpanStyle::Normal,
+                            },
+                        ],
+                    }
+                ]
+            }
+        );
     }
 }
