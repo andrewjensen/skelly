@@ -182,11 +182,36 @@ impl<'a> Renderer<'a> {
                         _ => unreachable!("Invalid heading level"),
                     };
 
-                    spans.push((content, attrs_this_heading));
+                    for span in content.iter() {
+                        // TODO: refactor
+                        match &span {
+                            &Span::Text {
+                                content,
+                                style: span_style,
+                            } => {
+                                let attrs = match span_style {
+                                    SpanStyle::Normal => attrs_this_heading,
+                                    SpanStyle::Bold => attrs_this_heading.weight(Weight::BOLD),
+                                    SpanStyle::Italic => attrs_this_heading.style(Style::Italic),
+                                    SpanStyle::BoldItalic => {
+                                        attrs_this_heading.weight(Weight::BOLD).style(Style::Italic)
+                                    }
+                                    SpanStyle::Code => attrs_this_heading.family(Family::Monospace),
+                                };
+
+                                spans.push((&content, attrs));
+                            }
+                            &Span::Link(link) => {
+                                spans.push((&link.text, attrs_this_heading.color(COLOR_LINK)));
+                            }
+                        }
+                    }
+
                     spans.push(("\n\n", attrs_this_heading));
                 }
                 Block::Paragraph { content } => {
                     for span in content.iter() {
+                        // TODO: refactor
                         match &span {
                             &Span::Text {
                                 content,
@@ -199,7 +224,7 @@ impl<'a> Renderer<'a> {
                                     SpanStyle::BoldItalic => {
                                         attrs_paragraph.weight(Weight::BOLD).style(Style::Italic)
                                     }
-                                    _ => attrs_paragraph,
+                                    SpanStyle::Code => attrs_paragraph.family(Family::Monospace),
                                 };
 
                                 spans.push((&content, attrs));

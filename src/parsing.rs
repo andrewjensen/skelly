@@ -12,7 +12,7 @@ pub struct Document {
 pub enum Block {
     Heading {
         level: u8,
-        content: String,
+        content: Vec<Span>,
     },
     Paragraph {
         content: Vec<Span>,
@@ -166,9 +166,19 @@ fn parse_heading(node_heading: &Node, source: &[u8]) -> Result<Block, ParseError
         ));
     }
     let node_heading_content = cursor.node();
-    let content = temp_squash_block_text(&node_heading_content, source)?;
+    let mut spans = flatten_child_spans(&node_heading_content, &SpanStyle::Normal, source)?;
 
-    Ok(Block::Heading { level, content })
+    // HACK: tree-sitter adds a leading space to the first span, so we trim it
+    if let Some(first_span) = spans.first_mut() {
+        if let Span::Text { content, .. } = first_span {
+            *content = content.trim_start().to_string();
+        }
+    }
+
+    Ok(Block::Heading {
+        level,
+        content: spans,
+    })
 }
 
 fn parse_paragraph(node_paragraph: &Node, source: &[u8]) -> Result<Block, ParseError> {
@@ -247,6 +257,14 @@ fn parse_span(
         }
         "strong_emphasis" => flatten_child_spans(node_span, &SpanStyle::Bold, source),
         "emphasis" => flatten_child_spans(node_span, &SpanStyle::Italic, source),
+        "code_span" => {
+            let node_code_span_content = expect_node_kind(node_span.named_child(0), "text")?;
+            let text = node_code_span_content.utf8_text(source)?.to_string();
+            Ok(vec![Span::Text {
+                content: text,
+                style: SpanStyle::Code,
+            }])
+        }
         other_kind => {
             let text = format!("[TODO: parse node `{}`]", other_kind);
             Ok(vec![Span::Text {
@@ -367,7 +385,10 @@ mod test {
                 blocks: vec![
                     Block::Heading {
                         level: 1,
-                        content: "My Document".to_string()
+                        content: vec![Span::Text {
+                            content: "My Document".to_string(),
+                            style: SpanStyle::Normal,
+                        }]
                     },
                     Block::Paragraph {
                         content: vec![Span::Text {
@@ -401,7 +422,10 @@ mod test {
                 blocks: vec![
                     Block::Heading {
                         level: 1,
-                        content: "My Document".to_string()
+                        content: vec![Span::Text {
+                            content: "My Document".to_string(),
+                            style: SpanStyle::Normal,
+                        }]
                     },
                     Block::Paragraph {
                         content: vec![
@@ -467,6 +491,78 @@ mod test {
                             style: SpanStyle::Normal,
                         },
                     ],
+                }]
+            }
+        );
+    }
+
+    #[test]
+    fn test_inline_code() {
+        let content = r#"
+        <p>This paragraph contains some <code>inline_code()</code> so that's neat.</p>
+        "#;
+        let input = create_html_document(content);
+        let document = parse_webpage(&input).unwrap();
+
+        assert_eq!(
+            document,
+            Document {
+                blocks: vec![Block::Paragraph {
+                    content: vec![
+                        Span::Text {
+                            content: "This paragraph contains some ".to_string(),
+                            style: SpanStyle::Normal,
+                        },
+                        Span::Text {
+                            content: "inline_code()".to_string(),
+                            style: SpanStyle::Code,
+                        },
+                        Span::Text {
+                            content: " so that's neat.".to_string(),
+                            style: SpanStyle::Normal,
+                        },
+                    ],
+                }]
+            }
+        );
+    }
+
+    #[test]
+    fn test_header_styles() {
+        let content = r#"
+        <h1>This header contains <em>styles</em> and <a href="https://example.com">a link</a>
+        so that's neat.</h1>
+        "#;
+        let input = create_html_document(content);
+        let document = parse_webpage(&input).unwrap();
+
+        assert_eq!(
+            document,
+            Document {
+                blocks: vec![Block::Heading {
+                    level: 1,
+                    content: vec![
+                        Span::Text {
+                            content: "This header contains ".to_string(),
+                            style: SpanStyle::Normal,
+                        },
+                        Span::Text {
+                            content: "styles".to_string(),
+                            style: SpanStyle::Italic,
+                        },
+                        Span::Text {
+                            content: " and ".to_string(),
+                            style: SpanStyle::Normal,
+                        },
+                        Span::Link(Link {
+                            text: "a link".to_string(),
+                            destination: "https://example.com".to_string(),
+                        }),
+                        Span::Text {
+                            content: " so that's neat.".to_string(),
+                            style: SpanStyle::Normal,
+                        },
+                    ]
                 }]
             }
         );
