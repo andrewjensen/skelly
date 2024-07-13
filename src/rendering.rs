@@ -236,8 +236,18 @@ impl<'a> Renderer<'a> {
                     }
                     spans.push(("\n\n", attrs_paragraph));
                 }
-                Block::List => {
-                    spans.push(("(TODO: render list)", attrs_paragraph));
+                Block::List { items: _ } => {
+                    spans.push(("(TODO: render Block::List)", attrs_paragraph));
+                    spans.push(("\n\n", attrs_paragraph));
+                }
+                Block::Image { alt_text, url } => {
+                    spans.push(("(TODO: render Block::Image)", attrs_paragraph));
+                    spans.push(("URL:", attrs_paragraph));
+                    spans.push((url, attrs_paragraph));
+                    if let Some(alt_text) = alt_text {
+                        spans.push((" Alt text:", attrs_paragraph));
+                        spans.push((alt_text, attrs_paragraph));
+                    }
                     spans.push(("\n\n", attrs_paragraph));
                 }
                 Block::BlockQuote { content } => {

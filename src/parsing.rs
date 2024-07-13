@@ -17,7 +17,13 @@ pub enum Block {
     Paragraph {
         content: Vec<Span>,
     },
-    List,
+    List {
+        items: Vec<ListItem>,
+    },
+    Image {
+        alt_text: Option<String>,
+        url: String,
+    },
     BlockQuote {
         content: String,
     },
@@ -26,6 +32,11 @@ pub enum Block {
         language: Option<String>,
         content: String,
     },
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ListItem {
+    pub content: Vec<Span>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -126,8 +137,8 @@ fn parse_block(node_block: &Node, source: &[u8]) -> Result<Block, ParseError> {
     match node_block.kind() {
         "atx_heading" => parse_heading(node_block, source),
         "paragraph" => parse_paragraph(node_block, source),
-        "tight_list" => Ok(Block::List),
-        "loose_list" => Ok(Block::List),
+        "tight_list" => parse_list(node_block, source),
+        "loose_list" => parse_list(node_block, source),
         "block_quote" => parse_block_quote(node_block, source),
         "thematic_break" => Ok(Block::ThematicBreak),
         "fenced_code_block" => parse_code_block(node_block, source),
@@ -182,9 +193,62 @@ fn parse_heading(node_heading: &Node, source: &[u8]) -> Result<Block, ParseError
 }
 
 fn parse_paragraph(node_paragraph: &Node, source: &[u8]) -> Result<Block, ParseError> {
+    // If the paragraph contains an image and nothing else, create a Block::Image
+    let mut cursor = node_paragraph.walk();
+    let mut has_image = false;
+    let mut has_text = false;
+    for child in node_paragraph.named_children(&mut cursor) {
+        match child.kind() {
+            "image" => has_image = true,
+            "text" => has_text = true,
+            _ => {}
+        }
+    }
+
+    if has_image && !has_text {
+        return parse_image(node_paragraph, source);
+    }
+
     let spans = flatten_child_spans(node_paragraph, &SpanStyle::Normal, source)?;
 
     Ok(Block::Paragraph { content: spans })
+}
+
+fn parse_image(node_paragraph: &Node, source: &[u8]) -> Result<Block, ParseError> {
+    let mut cursor = node_paragraph.walk();
+    let node_image = expect_node_kind(node_paragraph.named_child(0), "image")?;
+
+    let node_link_destination = expect_node_kind(
+        node_image
+            .named_children(&mut cursor)
+            .find(|child| child.kind() == "link_destination"),
+        "link_destination",
+    )?;
+    let node_link_destination_inner_text =
+        expect_node_kind(node_link_destination.named_child(0), "text")?;
+    let url = node_link_destination_inner_text
+        .utf8_text(source)?
+        .to_string();
+
+    let node_image_description = node_image
+        .named_children(&mut cursor)
+        .find(|child| child.kind() == "image_description");
+
+    let alt_text: Option<String> = match node_image_description {
+        Some(node_image_description) => {
+            let node_image_description_inner_text =
+                expect_node_kind(node_image_description.named_child(0), "text")?;
+
+            Some(
+                node_image_description_inner_text
+                    .utf8_text(source)?
+                    .to_string(),
+            )
+        }
+        None => None,
+    };
+
+    Ok(Block::Image { url, alt_text })
 }
 
 fn parse_block_quote(node_block_quote: &Node, source: &[u8]) -> Result<Block, ParseError> {
@@ -218,6 +282,63 @@ fn parse_code_block(node_fenced_code_block: &Node, source: &[u8]) -> Result<Bloc
     let content = node_content_inner_text.utf8_text(source)?.to_string();
 
     Ok(Block::CodeBlock { language, content })
+}
+
+/*
+TODO: implement
+(tight_list
+    (list_item
+        (list_marker)
+        (paragraph
+            (text)
+        )
+    )
+    (list_item
+        (list_marker)
+        (paragraph
+            (text)
+        )
+        (tight_list
+            (list_item
+                (list_marker)
+                (paragraph
+                    (text)
+                )
+            )
+            (list_item
+                (list_marker)
+                (paragraph
+                    (text)
+                )
+            )
+        )
+    )
+    (list_item
+        (list_marker)
+        (paragraph
+            (text)
+        )
+    )
+)
+*/
+
+fn parse_list(node_list: &Node, source: &[u8]) -> Result<Block, ParseError> {
+    println!("Parsing list: {}", node_list.to_sexp());
+
+    let mut items = vec![];
+
+    let mut cursor = node_list.walk();
+    for node_list_item in node_list.named_children(&mut cursor) {
+        let node_list_item = expect_node_kind(Some(node_list_item), "list_item")?;
+
+        let list_item_spans = flatten_child_spans(&node_list_item, &SpanStyle::Normal, source)?;
+        let item = ListItem {
+            content: list_item_spans,
+        };
+        items.push(item);
+    }
+
+    Ok(Block::List { items })
 }
 
 fn flatten_child_spans(
@@ -564,6 +685,97 @@ mod test {
                         },
                     ]
                 }]
+            }
+        );
+    }
+
+    // #[test]
+    // fn test_unordered_list() {
+    //     let content = r#"
+    //     <p>Here comes a list of animals:</p>
+    //     <ul>
+    //         <li>Cat</li>
+    //         <li>Dog
+    //             <ul>
+    //                 <li>Golden Retriever</li>
+    //                 <li>Labrador</li>
+    //             </ul>
+    //         </li>
+    //         <li>Crocodile</li>
+    //     </ul>
+    //     "#;
+    //     let input = create_html_document(content);
+    //     let document = parse_webpage(&input).unwrap();
+
+    //     assert_eq!(
+    //         document,
+    //         Document {
+    //             blocks: vec![
+    //                 Block::Paragraph {
+    //                     content: vec![Span::Text {
+    //                         content: "Here comes a list of animals:".to_string(),
+    //                         style: SpanStyle::Normal,
+    //                     }]
+    //                 },
+    //                 Block::List {
+    //                     items: vec![ListItem {
+    //                         content: vec![
+    //                             Span::Text {
+    //                                 content: "Cat".to_string(),
+    //                                 style: SpanStyle::Normal,
+    //                             },
+    //                             Span::Text {
+    //                                 content: "Dog".to_string(),
+    //                                 style: SpanStyle::Normal,
+    //                             },
+    //                             Span::Text {
+    //                                 content: "Crocodile".to_string(),
+    //                                 style: SpanStyle::Normal,
+    //                             },
+    //                         ]
+    //                     },]
+    //                 }
+    //             ]
+    //         }
+    //     );
+    // }
+
+    #[test]
+    fn test_block_image() {
+        let content = r#"
+        <p>Here is an image of a cat:</p>
+        <img src="https://www.example.com/cat.jpg" alt="A cat" />
+        <p>This image has no alt text:</p>
+        <img src="https://www.example.com/cat.jpg" />
+        "#;
+        let input = create_html_document(content);
+        let document = parse_webpage(&input).unwrap();
+
+        assert_eq!(
+            document,
+            Document {
+                blocks: vec![
+                    Block::Paragraph {
+                        content: vec![Span::Text {
+                            content: "Here is an image of a cat:".to_string(),
+                            style: SpanStyle::Normal,
+                        }]
+                    },
+                    Block::Image {
+                        url: "https://www.example.com/cat.jpg".to_string(),
+                        alt_text: Some("A cat".to_string()),
+                    },
+                    Block::Paragraph {
+                        content: vec![Span::Text {
+                            content: "This image has no alt text:".to_string(),
+                            style: SpanStyle::Normal,
+                        }]
+                    },
+                    Block::Image {
+                        url: "https://www.example.com/cat.jpg".to_string(),
+                        alt_text: None,
+                    }
+                ]
             }
         );
     }
