@@ -13,6 +13,8 @@ use crate::settings::RenderingSettings;
 
 use crate::{CANVAS_HEIGHT, CANVAS_MARGIN_BOTTOM, CANVAS_MARGIN_TOP, CANVAS_WIDTH, DEBUG_LAYOUT};
 
+const COLOR_LINK: Color = Color::rgba(0x00, 0x00, 0xFF, 0xFF);
+
 pub struct Renderer<'a> {
     rendering_settings: &'a RenderingSettings,
     buffer: Buffer,
@@ -203,7 +205,7 @@ impl<'a> Renderer<'a> {
                                 spans.push((&content, attrs));
                             }
                             &Span::Link(link) => {
-                                spans.push((&link.text, attrs_paragraph));
+                                spans.push((&link.text, attrs_paragraph.color(COLOR_LINK)));
                             }
                         }
                     }
