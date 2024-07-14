@@ -15,6 +15,9 @@ use crate::{CANVAS_HEIGHT, CANVAS_MARGIN_BOTTOM, CANVAS_MARGIN_TOP, CANVAS_WIDTH
 
 const COLOR_LINK: Color = Color::rgba(0x00, 0x00, 0xFF, 0xFF);
 
+const LINK_UNDERLINE_OFFSET_Y: i32 = 2;
+const LINK_UNDERLINE_THICKNESS: i32 = 2;
+
 pub struct Renderer<'a> {
     rendering_settings: &'a RenderingSettings,
     buffer: Buffer,
@@ -316,6 +319,23 @@ pub fn draw_layout_runs<F>(
                     );
                 },
             );
+
+            if let Some(color) = glyph.color_opt {
+                if color == COLOR_LINK {
+                    // Draw a blue line underneath the glyph
+                    let x1 = glyph.x as u32;
+                    let x2 = (glyph.x + glyph.w) as u32;
+
+                    let y = offset_y + run.line_y as i32 + glyph.y as i32 + LINK_UNDERLINE_OFFSET_Y;
+
+                    for x in x1..x2 {
+                        for y_offset in 0..LINK_UNDERLINE_THICKNESS {
+                            f(x as i32, y + y_offset, color);
+                        }
+                        f(x as i32, y, color);
+                    }
+                }
+            }
         }
     }
 }
