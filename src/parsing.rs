@@ -142,6 +142,12 @@ fn parse_block(node_block: &Node, source: &[u8]) -> Result<Block, ParseError> {
         "block_quote" => parse_block_quote(node_block, source),
         "thematic_break" => Ok(Block::ThematicBreak),
         "fenced_code_block" => parse_code_block(node_block, source),
+        "html_block" => Ok(Block::Paragraph {
+            content: vec![Span::Text {
+                content: "(HTML block)".to_string(),
+                style: SpanStyle::Normal,
+            }],
+        }),
         _ => Err(ParseError::UnexpectedNodeKind(
             node_block.kind().to_string(),
         )),
@@ -440,10 +446,16 @@ fn parse_link(node_link: &Node, source: &[u8]) -> Result<Link, ParseError> {
     let text = match node_link_text {
         None => "(no link text)".to_string(),
         Some(node_link_text) => {
-            let node_link_text_inner = expect_node_kind(node_link_text.named_child(0), "text")?;
-            let text = node_link_text_inner.utf8_text(source)?.to_string();
+            if node_link_text.named_child_count() == 1
+                && node_link_text.named_child(0).unwrap().kind() == "text"
+            {
+                let node_link_text_inner = expect_node_kind(node_link_text.named_child(0), "text")?;
+                let text = node_link_text_inner.utf8_text(source)?.to_string();
 
-            text
+                text
+            } else {
+                "(complex link contents)".to_string()
+            }
         }
     };
 
@@ -774,6 +786,37 @@ mod test {
                     Block::Image {
                         url: "https://www.example.com/cat.jpg".to_string(),
                         alt_text: None,
+                    }
+                ]
+            }
+        );
+    }
+
+    #[test]
+    fn test_image_link() {
+        let content = r#"
+        <p>Click on this image:</p>
+
+        <p><a href="https://example.com"><img src="https://www.example.com/cat.jpg" alt="A cat"></a></p>
+        "#;
+        let input = create_html_document(content);
+        let document = parse_webpage(&input).unwrap();
+
+        assert_eq!(
+            document,
+            Document {
+                blocks: vec![
+                    Block::Paragraph {
+                        content: vec![Span::Text {
+                            content: "Click on this image:".to_string(),
+                            style: SpanStyle::Normal,
+                        }]
+                    },
+                    Block::Paragraph {
+                        content: vec![Span::Link(Link {
+                            text: "(complex link contents)".to_string(),
+                            destination: "https://example.com".to_string(),
+                        })]
                     }
                 ]
             }
