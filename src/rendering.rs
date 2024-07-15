@@ -239,9 +239,38 @@ impl<'a> Renderer<'a> {
                     }
                     spans.push(("\n\n", attrs_paragraph));
                 }
-                Block::List { items: _ } => {
-                    spans.push(("(TODO: render Block::List)", attrs_paragraph));
-                    spans.push(("\n\n", attrs_paragraph));
+                Block::List { items } => {
+                    for item in items.iter() {
+                        spans.push(("• ", attrs_paragraph));
+                        for span in item.content.iter() {
+                            // TODO: refactor
+                            match &span {
+                                &Span::Text {
+                                    content,
+                                    style: span_style,
+                                } => {
+                                    let attrs = match span_style {
+                                        SpanStyle::Normal => attrs_paragraph,
+                                        SpanStyle::Bold => attrs_paragraph.weight(Weight::BOLD),
+                                        SpanStyle::Italic => attrs_paragraph.style(Style::Italic),
+                                        SpanStyle::BoldItalic => attrs_paragraph
+                                            .weight(Weight::BOLD)
+                                            .style(Style::Italic),
+                                        SpanStyle::Code => {
+                                            attrs_paragraph.family(Family::Monospace)
+                                        }
+                                    };
+
+                                    spans.push((&content, attrs));
+                                }
+                                &Span::Link(link) => {
+                                    spans.push((&link.text, attrs_paragraph.color(COLOR_LINK)));
+                                }
+                            }
+                        }
+                        spans.push(("\n", attrs_paragraph));
+                    }
+                    spans.push(("\n", attrs_paragraph));
                 }
                 Block::Image { alt_text, url } => {
                     spans.push(("(TODO: render Block::Image)", attrs_paragraph));

@@ -329,19 +329,33 @@ TODO: implement
 */
 
 fn parse_list(node_list: &Node, source: &[u8]) -> Result<Block, ParseError> {
-    println!("Parsing list: {}", node_list.to_sexp());
-
     let mut items = vec![];
 
     let mut cursor = node_list.walk();
     for node_list_item in node_list.named_children(&mut cursor) {
         let node_list_item = expect_node_kind(Some(node_list_item), "list_item")?;
 
-        let list_item_spans = flatten_child_spans(&node_list_item, &SpanStyle::Normal, source)?;
-        let item = ListItem {
-            content: list_item_spans,
-        };
-        items.push(item);
+        let mut nested_cursor = node_list_item.walk();
+        if node_list_item.named_children(&mut nested_cursor).count() == 2
+            && node_list_item.named_child(0).unwrap().kind() == "list_marker"
+            && node_list_item.named_child(1).unwrap().kind() == "paragraph"
+        {
+            let node_paragraph = expect_node_kind(node_list_item.named_child(1), "paragraph")?;
+
+            let list_item_spans = flatten_child_spans(&node_paragraph, &SpanStyle::Normal, source)?;
+            let item = ListItem {
+                content: list_item_spans,
+            };
+            items.push(item);
+        } else {
+            let item = ListItem {
+                content: vec![Span::Text {
+                    style: SpanStyle::Normal,
+                    content: "(complex list item)".to_string(),
+                }],
+            };
+            items.push(item);
+        }
     }
 
     Ok(Block::List { items })
@@ -701,56 +715,73 @@ mod test {
         );
     }
 
-    // #[test]
-    // fn test_unordered_list() {
-    //     let content = r#"
-    //     <p>Here comes a list of animals:</p>
-    //     <ul>
-    //         <li>Cat</li>
-    //         <li>Dog
-    //             <ul>
-    //                 <li>Golden Retriever</li>
-    //                 <li>Labrador</li>
-    //             </ul>
-    //         </li>
-    //         <li>Crocodile</li>
-    //     </ul>
-    //     "#;
-    //     let input = create_html_document(content);
-    //     let document = parse_webpage(&input).unwrap();
+    #[test]
+    fn test_unordered_list() {
+        let content = r#"
+        <p>Here comes a list of animals:</p>
+        <ul>
+            <li>Cat</li>
+            <li>Cat with some <em>style</em></li>
+            <li>Dog
+                <ul>
+                    <li>Golden Retriever</li>
+                    <li>Labrador</li>
+                </ul>
+            </li>
+            <li>Crocodile</li>
+        </ul>
+        "#;
+        let input = create_html_document(content);
+        let document = parse_webpage(&input).unwrap();
 
-    //     assert_eq!(
-    //         document,
-    //         Document {
-    //             blocks: vec![
-    //                 Block::Paragraph {
-    //                     content: vec![Span::Text {
-    //                         content: "Here comes a list of animals:".to_string(),
-    //                         style: SpanStyle::Normal,
-    //                     }]
-    //                 },
-    //                 Block::List {
-    //                     items: vec![ListItem {
-    //                         content: vec![
-    //                             Span::Text {
-    //                                 content: "Cat".to_string(),
-    //                                 style: SpanStyle::Normal,
-    //                             },
-    //                             Span::Text {
-    //                                 content: "Dog".to_string(),
-    //                                 style: SpanStyle::Normal,
-    //                             },
-    //                             Span::Text {
-    //                                 content: "Crocodile".to_string(),
-    //                                 style: SpanStyle::Normal,
-    //                             },
-    //                         ]
-    //                     },]
-    //                 }
-    //             ]
-    //         }
-    //     );
-    // }
+        assert_eq!(
+            document,
+            Document {
+                blocks: vec![
+                    Block::Paragraph {
+                        content: vec![Span::Text {
+                            content: "Here comes a list of animals:".to_string(),
+                            style: SpanStyle::Normal,
+                        }]
+                    },
+                    Block::List {
+                        items: vec![
+                            ListItem {
+                                content: vec![Span::Text {
+                                    content: "Cat".to_string(),
+                                    style: SpanStyle::Normal,
+                                },]
+                            },
+                            ListItem {
+                                content: vec![
+                                    Span::Text {
+                                        content: "Cat with some ".to_string(),
+                                        style: SpanStyle::Normal,
+                                    },
+                                    Span::Text {
+                                        content: "style".to_string(),
+                                        style: SpanStyle::Italic,
+                                    },
+                                ]
+                            },
+                            ListItem {
+                                content: vec![Span::Text {
+                                    content: "(complex list item)".to_string(),
+                                    style: SpanStyle::Normal,
+                                },]
+                            },
+                            ListItem {
+                                content: vec![Span::Text {
+                                    content: "Crocodile".to_string(),
+                                    style: SpanStyle::Normal,
+                                },]
+                            },
+                        ],
+                    }
+                ]
+            }
+        );
+    }
 
     #[test]
     fn test_block_image() {
