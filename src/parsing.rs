@@ -290,44 +290,6 @@ fn parse_code_block(node_fenced_code_block: &Node, source: &[u8]) -> Result<Bloc
     Ok(Block::CodeBlock { language, content })
 }
 
-/*
-TODO: implement
-(tight_list
-    (list_item
-        (list_marker)
-        (paragraph
-            (text)
-        )
-    )
-    (list_item
-        (list_marker)
-        (paragraph
-            (text)
-        )
-        (tight_list
-            (list_item
-                (list_marker)
-                (paragraph
-                    (text)
-                )
-            )
-            (list_item
-                (list_marker)
-                (paragraph
-                    (text)
-                )
-            )
-        )
-    )
-    (list_item
-        (list_marker)
-        (paragraph
-            (text)
-        )
-    )
-)
-*/
-
 fn parse_list(node_list: &Node, source: &[u8]) -> Result<Block, ParseError> {
     let mut items = vec![];
 
