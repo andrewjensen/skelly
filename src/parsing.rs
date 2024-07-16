@@ -87,6 +87,9 @@ pub fn parse_webpage(page_html: &str) -> Result<Document, ParseError> {
 
     let converter = HtmlToMarkdown::builder()
         .add_handler(vec!["script", "style", "title"], |_: Element| None)
+        .add_handler(vec!["figure"], |_: Element| {
+            Some("(TODO: handle figure)\n\n".to_string())
+        })
         .build();
     let page_markdown = converter.convert(page_html);
     if page_markdown.is_err() {
