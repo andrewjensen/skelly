@@ -71,13 +71,17 @@
                     name="url"
                     placeholder="https://example.com"
                 />
-                <input type="submit" value="Submit" />
+                <input type="submit" value="Go" />
             </form>
         </main>
 
         <script type="text/javascript">
             const urlInput = document.querySelector("input[name=url]");
             const submitButton = document.querySelector("input[type=submit]");
+
+            urlInput.addEventListener("click", (event) => {
+                event.target.select();
+            });
 
             submitButton.addEventListener("click", async (event) => {
                 event.preventDefault();
