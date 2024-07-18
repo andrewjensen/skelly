@@ -20,7 +20,6 @@ use crate::settings::load_settings_with_fallback;
 
 pub const CANVAS_WIDTH: u32 = 1404;
 pub const CANVAS_HEIGHT: u32 = 1872;
-pub const CANVAS_MARGIN_X: u32 = 100;
 pub const CANVAS_MARGIN_TOP: u32 = 150;
 pub const CANVAS_MARGIN_BOTTOM: u32 = 150;
 pub const DEBUG_LAYOUT: bool = false;
