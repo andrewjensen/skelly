@@ -1,3 +1,4 @@
+use log::warn;
 use serde::Deserialize;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
@@ -26,7 +27,18 @@ impl Default for Settings {
     }
 }
 
-pub async fn load_settings(file_path: &str) -> Result<Settings, Box<dyn std::error::Error>> {
+pub async fn load_settings_with_fallback(file_path: &str) -> Settings {
+    match load_settings(file_path).await {
+        Ok(settings) => settings,
+        Err(_) => {
+            warn!("Failed to load settings from file, using default settings");
+
+            Settings::default()
+        }
+    }
+}
+
+async fn load_settings(file_path: &str) -> Result<Settings, Box<dyn std::error::Error>> {
     let mut file = File::open(file_path).await?;
 
     let mut contents = vec![];

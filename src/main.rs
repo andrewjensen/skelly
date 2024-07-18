@@ -16,7 +16,7 @@ mod settings;
 mod remarkable;
 
 use crate::browser_core::{BrowserCore, BrowserState};
-use crate::settings::load_settings;
+use crate::settings::load_settings_with_fallback;
 
 pub const CANVAS_WIDTH: u32 = 1404;
 pub const CANVAS_HEIGHT: u32 = 1872;
@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("The URL argument is: {}", url);
 
     let settings_file_path = "./settings.json";
-    let settings = load_settings(settings_file_path).await.unwrap();
+    let settings = load_settings_with_fallback(settings_file_path).await;
     info!("Settings: {:#?}", settings);
 
     let mut browser = BrowserCore::new(settings.clone());
@@ -77,7 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
     let settings_file_path = "/home/root/.config/skelly/settings.json";
-    let settings = load_settings(settings_file_path).await.unwrap();
+    let settings = load_settings_with_fallback(settings_file_path).await;
     info!("Settings: {:#?}", settings);
 
     let mut app = remarkable::RemarkableApp::new(settings);
