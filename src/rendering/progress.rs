@@ -76,7 +76,7 @@ fn draw_text(
     font_system: &mut FontSystem,
     cache: &mut SwashCache,
 ) {
-    let text = format!("Page {} / {}", page_idx + 1, total_pages);
+    let text = format!("{} / {}", page_idx + 1, total_pages);
 
     let metrics = Metrics::relative(TEXT_FONT_SIZE, 1.0);
     let attrs = Attrs::new().metrics(metrics);
