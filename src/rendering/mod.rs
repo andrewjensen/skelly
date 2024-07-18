@@ -13,6 +13,10 @@ use crate::settings::RenderingSettings;
 
 use crate::{CANVAS_HEIGHT, CANVAS_MARGIN_BOTTOM, CANVAS_MARGIN_TOP, CANVAS_WIDTH, DEBUG_LAYOUT};
 
+mod progress;
+
+use progress::add_progress_overlay;
+
 const COLOR_LINK: Color = Color::rgba(0x00, 0x00, 0xFF, 0xFF);
 
 const LINK_UNDERLINE_OFFSET_Y: i32 = 2;
@@ -128,6 +132,14 @@ impl<'a> Renderer<'a> {
                 &mut self.font_system,
                 &mut self.swash_cache,
                 &self.keyboard_state,
+            );
+
+            add_progress_overlay(
+                page_idx,
+                pages.len(),
+                &mut page_canvas,
+                &mut self.font_system,
+                &mut self.swash_cache,
             );
 
             page_canvases.push(page_canvas);
@@ -376,14 +388,27 @@ pub fn draw_box_border(
     page_canvas: &mut RgbaImage,
 ) {
     // Top and bottom borders
-    for x in box_top_left.x..box_bottom_right.x {
+    for x in box_top_left.x..box_bottom_right.x + 1 {
         page_canvas.put_pixel(x, box_top_left.y, color);
         page_canvas.put_pixel(x, box_bottom_right.y, color);
     }
 
     // Left and right borders
-    for y in box_top_left.y..box_bottom_right.y {
+    for y in box_top_left.y..box_bottom_right.y + 1 {
         page_canvas.put_pixel(box_top_left.x, y, color);
         page_canvas.put_pixel(box_bottom_right.x, y, color);
+    }
+}
+
+pub fn draw_filled_rectangle(
+    box_top_left: Point2<u32>,
+    box_bottom_right: Point2<u32>,
+    color: Rgba<u8>,
+    screen: &mut RgbaImage,
+) {
+    for x in box_top_left.x..box_bottom_right.x + 1 {
+        for y in box_top_left.y..box_bottom_right.y + 1 {
+            screen.put_pixel(x, y, color);
+        }
     }
 }
