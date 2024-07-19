@@ -87,9 +87,7 @@ pub fn parse_webpage(page_html: &str) -> Result<Document, ParseError> {
 
     let converter = HtmlToMarkdown::builder()
         .add_handler(vec!["script", "style", "title"], |_: Element| None)
-        .add_handler(vec!["figure"], |_: Element| {
-            Some("(TODO: handle figure)\n\n".to_string())
-        })
+        .add_handler(vec!["figcaption"], figcaption_handler)
         .add_handler(vec!["dt", "dd"], definition_list_handler)
         .build();
     let page_markdown = converter.convert(page_html);
@@ -135,6 +133,10 @@ pub fn parse_webpage(page_html: &str) -> Result<Document, ParseError> {
     }
 
     Ok(Document { blocks })
+}
+
+fn figcaption_handler(element: Element) -> Option<String> {
+    Some(format!("\n\n{}\n\n", element.content))
 }
 
 fn definition_list_handler(element: Element) -> Option<String> {
@@ -884,6 +886,50 @@ mod test {
                                 style: SpanStyle::Normal,
                             },
                         ]
+                    },
+                ]
+            }
+        );
+    }
+
+    #[test]
+    fn test_figure() {
+        let content = r#"
+        <p>Consider the following:</p>
+        <figure>
+            <img src="https://www.example.com/cat.jpg" alt="A cat" />
+            <figcaption>An image of a cat</figcaption>
+        </figure>
+        <p>As you can see, that was a cat.</p>
+        "#;
+        let input = create_html_document(content);
+        let document = parse_webpage(&input).unwrap();
+
+        assert_eq!(
+            document,
+            Document {
+                blocks: vec![
+                    Block::Paragraph {
+                        content: vec![Span::Text {
+                            content: "Consider the following:".to_string(),
+                            style: SpanStyle::Normal
+                        }]
+                    },
+                    Block::Image {
+                        url: "https://www.example.com/cat.jpg".to_string(),
+                        alt_text: Some("A cat".to_string())
+                    },
+                    Block::Paragraph {
+                        content: vec![Span::Text {
+                            content: "An image of a cat".to_string(),
+                            style: SpanStyle::Normal
+                        }]
+                    },
+                    Block::Paragraph {
+                        content: vec![Span::Text {
+                            content: "As you can see, that was a cat.".to_string(),
+                            style: SpanStyle::Normal
+                        }]
                     },
                 ]
             }
