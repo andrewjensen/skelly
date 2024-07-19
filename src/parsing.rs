@@ -90,6 +90,7 @@ pub fn parse_webpage(page_html: &str) -> Result<Document, ParseError> {
         .add_handler(vec!["figure"], |_: Element| {
             Some("(TODO: handle figure)\n\n".to_string())
         })
+        .add_handler(vec!["dt", "dd"], definition_list_handler)
         .build();
     let page_markdown = converter.convert(page_html);
     if page_markdown.is_err() {
@@ -134,6 +135,10 @@ pub fn parse_webpage(page_html: &str) -> Result<Document, ParseError> {
     }
 
     Ok(Document { blocks })
+}
+
+fn definition_list_handler(element: Element) -> Option<String> {
+    Some(format!("{}\n\n", element.content))
 }
 
 fn parse_block(node_block: &Node, source: &[u8]) -> Result<Block, ParseError> {
@@ -814,6 +819,72 @@ mod test {
                             destination: "https://example.com".to_string(),
                         })]
                     }
+                ]
+            }
+        );
+    }
+
+    #[test]
+    fn test_definition_list() {
+        let content = r#"
+        <dl>
+            <dt>Term 1</dt>
+            <dd>Definition 1</dd>
+            <dt>Term 2 with <em>styles</em> inside</dt>
+            <dd>Definition 2 with <em>styles</em> inside</dd>
+        </dl>
+        "#;
+        let input = create_html_document(content);
+        let document = parse_webpage(&input).unwrap();
+
+        assert_eq!(
+            document,
+            Document {
+                blocks: vec![
+                    Block::Paragraph {
+                        content: vec![Span::Text {
+                            content: "Term 1".to_string(),
+                            style: SpanStyle::Normal,
+                        },]
+                    },
+                    Block::Paragraph {
+                        content: vec![Span::Text {
+                            content: "Definition 1".to_string(),
+                            style: SpanStyle::Normal,
+                        },]
+                    },
+                    Block::Paragraph {
+                        content: vec![
+                            Span::Text {
+                                content: "Term 2 with ".to_string(),
+                                style: SpanStyle::Normal,
+                            },
+                            Span::Text {
+                                content: "styles".to_string(),
+                                style: SpanStyle::Italic,
+                            },
+                            Span::Text {
+                                content: " inside".to_string(),
+                                style: SpanStyle::Normal,
+                            },
+                        ]
+                    },
+                    Block::Paragraph {
+                        content: vec![
+                            Span::Text {
+                                content: "Definition 2 with ".to_string(),
+                                style: SpanStyle::Normal,
+                            },
+                            Span::Text {
+                                content: "styles".to_string(),
+                                style: SpanStyle::Italic,
+                            },
+                            Span::Text {
+                                content: " inside".to_string(),
+                                style: SpanStyle::Normal,
+                            },
+                        ]
+                    },
                 ]
             }
         );
