@@ -1,7 +1,10 @@
-use log::{error, info};
+use std::collections::HashMap;
 
-use crate::network::{fetch_webpage, ContentType};
-use crate::parsing::parse_webpage;
+use image::RgbaImage;
+use log::{error, info, warn};
+
+use crate::network::{fetch_image, fetch_webpage, resolve_url, ContentType, ImageResponse};
+use crate::parsing::{parse_webpage, Block, Document};
 use crate::rendering::Renderer;
 use crate::settings::Settings;
 
@@ -73,6 +76,9 @@ impl BrowserCore {
         let document = parse_result.unwrap();
         // info!("Parsed document: {:#?}", document);
 
+        info!("Fetching images...");
+        let _images = fetch_images(url, &document);
+
         info!("Rendering pages...");
         let mut renderer = Renderer::new(&self.settings.rendering);
         let page_canvases = renderer.render_document(&document);
@@ -91,4 +97,51 @@ impl BrowserCore {
             panic!("Browser is not in viewing state");
         }
     }
+}
+
+async fn fetch_images(
+    webpage_url: &str,
+    document: &Document,
+) -> HashMap<String, Option<RgbaImage>> {
+    let mut images = HashMap::new();
+
+    let image_urls = get_image_urls(webpage_url, document);
+    for image_url in image_urls {
+        let image_response = fetch_image(&image_url).await;
+        if let Err(err) = image_response {
+            warn!("Failed to fetch image: {}", err);
+            images.insert(image_url, None);
+            continue;
+        }
+        let image_response = image_response.unwrap();
+
+        let image = load_image(image_response);
+        images.insert(image_url, image);
+    }
+
+    images
+}
+
+fn load_image(image_response: ImageResponse) -> Option<RgbaImage> {
+    let image = image::load_from_memory(&image_response.data);
+    if let Err(err) = image {
+        warn!("Failed to load image: {}", err);
+        return None;
+    }
+    let image = image.unwrap().to_rgba8();
+
+    Some(image)
+}
+
+fn get_image_urls(webpage_url: &str, document: &Document) -> Vec<String> {
+    let mut image_urls = vec![];
+
+    for block in document.blocks.iter() {
+        if let Block::Image { url, .. } = block {
+            let resolved_url = resolve_url(webpage_url, url);
+            image_urls.push(resolved_url.to_string());
+        }
+    }
+
+    image_urls
 }

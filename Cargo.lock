@@ -2012,6 +2012,7 @@ dependencies = [
  "tokio",
  "tree-sitter",
  "tree-sitter-markdown",
+ "url",
 ]
 
 [[package]]
