@@ -6,7 +6,6 @@ use tokio::task::spawn_blocking;
 mod browser_core;
 mod debugging;
 mod keyboard;
-mod layout;
 mod network;
 mod parsing;
 mod rendering;

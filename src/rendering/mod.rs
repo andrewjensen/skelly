@@ -8,7 +8,6 @@ use log::info;
 use std::fmt;
 
 use crate::keyboard::{add_keyboard_overlay, KeyboardState};
-use crate::layout::split_runs_into_pages;
 use crate::parsing::{Block, Document, Span, SpanStyle};
 use crate::settings::RenderingSettings;
 
