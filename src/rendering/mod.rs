@@ -26,7 +26,7 @@ const LINK_UNDERLINE_OFFSET_Y: i32 = 2;
 const LINK_UNDERLINE_THICKNESS: i32 = 2;
 
 // TODO: make this smaller to waste less RAM and grow when needed
-const BLOCK_CANVAS_INITIAL_HEIGHT: u32 = 1000;
+const BLOCK_CANVAS_INITIAL_HEIGHT: u32 = 2000;
 
 pub struct RenderedBlock {
     pub height: u32,
@@ -81,7 +81,7 @@ impl<'a> Renderer<'a> {
         let mut current_page_canvas =
             create_blank_canvas(CANVAS_WIDTH, CANVAS_HEIGHT, COLOR_BACKGROUND);
 
-        let mut current_offset_y = CANVAS_MARGIN_TOP;
+        let mut page_offset_y = CANVAS_MARGIN_TOP;
 
         let max_y = CANVAS_HEIGHT - CANVAS_MARGIN_BOTTOM;
 
@@ -92,29 +92,48 @@ impl<'a> Renderer<'a> {
 
             info!("Rendered block: {:?}", rendered_block);
 
-            if current_offset_y + rendered_block.height >= max_y {
-                info!("Starting a new page for the block");
+            for (breakpoint_idx, breakpoint_y) in rendered_block.breakpoints.iter().enumerate() {
+                info!(
+                    "Breakpoint index {}, position {}",
+                    breakpoint_idx, breakpoint_y
+                );
 
-                finished_page_canvases.push(current_page_canvas);
-                current_page_canvas =
-                    create_blank_canvas(CANVAS_WIDTH, CANVAS_HEIGHT, COLOR_BACKGROUND);
-                current_offset_y = CANVAS_MARGIN_TOP;
+                let block_segment_height = match rendered_block.breakpoints.get(breakpoint_idx + 1)
+                {
+                    Some(next_breakpoint_y) => next_breakpoint_y - breakpoint_y,
+                    None => rendered_block.height - breakpoint_y,
+                };
+
+                if page_offset_y + block_segment_height >= max_y {
+                    info!("Starting a new page");
+
+                    finished_page_canvases.push(current_page_canvas);
+                    current_page_canvas =
+                        create_blank_canvas(CANVAS_WIDTH, CANVAS_HEIGHT, COLOR_BACKGROUND);
+                    page_offset_y = CANVAS_MARGIN_TOP;
+                }
+
+                info!(
+                    "Adding block segment {} (block offset {}, height {}) to current page at page offset {}",
+                    breakpoint_idx, breakpoint_y, block_segment_height, page_offset_y
+                );
+
+                let block_top_left = Point2::new(0, *breakpoint_y);
+                let block_bottom_right =
+                    Point2::new(CANVAS_WIDTH - 1, breakpoint_y + block_segment_height);
+
+                let copy_offset_y = (page_offset_y as i32) - (*breakpoint_y as i32);
+
+                copy_block_to_page_canvas(
+                    &rendered_block.canvas,
+                    &mut current_page_canvas,
+                    block_top_left,
+                    block_bottom_right,
+                    copy_offset_y,
+                );
+
+                page_offset_y += block_segment_height;
             }
-
-            info!("Adding block to current page");
-
-            let block_top_left = Point2::new(0, 0);
-            let block_bottom_right = Point2::new(CANVAS_WIDTH - 1, rendered_block.height);
-
-            copy_block_to_page_canvas(
-                &rendered_block.canvas,
-                &mut current_page_canvas,
-                block_top_left,
-                block_bottom_right,
-                current_offset_y,
-            );
-
-            current_offset_y += rendered_block.height;
         }
 
         finished_page_canvases.push(current_page_canvas);
@@ -511,14 +530,21 @@ fn copy_block_to_page_canvas(
     destination_canvas: &mut RgbaImage,
     block_top_left: Point2<u32>,
     block_bottom_right: Point2<u32>,
-    offset_y: u32,
+    offset_y: i32,
 ) {
     for block_x in block_top_left.x..block_bottom_right.x + 1 {
         for block_y in block_top_left.y..block_bottom_right.y + 1 {
             let pixel = block_image.get_pixel(block_x, block_y);
 
             let destination_x = block_x;
-            let destination_y = block_y + offset_y;
+            let destination_y = (block_y as i32) + offset_y;
+
+            if destination_y < 0 || destination_y >= destination_canvas.height() as i32 {
+                continue;
+            }
+
+            let destination_y = destination_y as u32;
+
             destination_canvas.put_pixel(destination_x, destination_y, *pixel);
         }
     }
