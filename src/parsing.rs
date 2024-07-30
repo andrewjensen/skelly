@@ -294,8 +294,22 @@ fn parse_code_block(node_fenced_code_block: &Node, source: &[u8]) -> Result<Bloc
             .find(|child| child.kind() == "code_fence_content"),
         "code_fence_content",
     )?;
-    let node_content_inner_text = expect_node_kind(node_code_fence_content.named_child(0), "text")?;
-    let content = node_content_inner_text.utf8_text(source)?.to_string();
+
+    let mut content: String = String::new();
+    for child in node_code_fence_content.named_children(&mut cursor) {
+        match child.kind() {
+            "text" => {
+                let node_text = expect_node_kind(Some(child), "text")?;
+                content.push_str(node_text.utf8_text(source)?);
+            }
+            "line_break" => {
+                content.push('\n');
+            }
+            _ => {
+                return Err(ParseError::UnexpectedNodeKind(child.kind().to_string()));
+            }
+        }
+    }
 
     Ok(Block::CodeBlock { language, content })
 }
@@ -683,6 +697,36 @@ mod test {
                         },
                     ]
                 }]
+            }
+        );
+    }
+
+    #[test]
+    fn test_code_block() {
+        let content = r#"
+    <p>Here is a code block:</p>
+    <pre><code>fn main() {
+    println!("Hello, world!");
+}</code></pre>
+        "#;
+        let input = create_html_document(content);
+        let document = parse_webpage(&input).unwrap();
+
+        assert_eq!(
+            document,
+            Document {
+                blocks: vec![
+                    Block::Paragraph {
+                        content: vec![Span::Text {
+                            content: "Here is a code block:".to_string(),
+                            style: SpanStyle::Normal,
+                        }]
+                    },
+                    Block::CodeBlock {
+                        language: None,
+                        content: "fn main() {\n    println!(\"Hello, world!\");\n}".to_string(),
+                    }
+                ]
             }
         );
     }
