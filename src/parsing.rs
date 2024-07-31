@@ -382,8 +382,16 @@ fn parse_span(
             let link = parse_link(node_span, source)?;
             Ok(vec![Span::Link(link)])
         }
-        "strong_emphasis" => flatten_child_spans(node_span, &SpanStyle::Bold, source),
-        "emphasis" => flatten_child_spans(node_span, &SpanStyle::Italic, source),
+        "strong_emphasis" => flatten_child_spans(
+            node_span,
+            &merge_styles(parent_style, &SpanStyle::Bold),
+            source,
+        ),
+        "emphasis" => flatten_child_spans(
+            node_span,
+            &merge_styles(parent_style, &SpanStyle::Italic),
+            source,
+        ),
         "code_span" => {
             let node_code_span_content = expect_node_kind(node_span.named_child(0), "text")?;
             let text = node_code_span_content.utf8_text(source)?.to_string();
@@ -471,6 +479,14 @@ fn parse_link(node_link: &Node, source: &[u8]) -> Result<Link, ParseError> {
     let destination = node_link_destination_inner.utf8_text(source)?.to_string();
 
     Ok(Link { destination, text })
+}
+
+pub fn merge_styles(parent_style: &SpanStyle, new_style: &SpanStyle) -> SpanStyle {
+    match (parent_style, new_style) {
+        (&SpanStyle::Bold, SpanStyle::Italic) => SpanStyle::BoldItalic,
+        (&SpanStyle::Italic, SpanStyle::Bold) => SpanStyle::BoldItalic,
+        _ => new_style.clone(),
+    }
 }
 
 fn expect_node_kind<'s, 'n>(
@@ -699,6 +715,49 @@ mod test {
                 }]
             }
         );
+    }
+
+    #[test]
+    fn test_nested_styles() {
+        let content = r#"
+        <p>
+            This is testing to make sure we can render nested styles, like
+            some
+            <em>italic text with <strong>bold</strong> nested inside</em>.
+        </p>
+        "#;
+        let input = create_html_document(content);
+        let document = parse_webpage(&input).unwrap();
+
+        assert_eq!(
+            document,
+            Document {
+                blocks: vec![Block::Paragraph {
+                    content: vec![
+                        Span::Text {
+                            content: "This is testing to make sure we can render nested styles, like some ".to_string(),
+                            style: SpanStyle::Normal,
+                        },
+                        Span::Text {
+                            content: "italic text with ".to_string(),
+                            style: SpanStyle::Italic,
+                        },
+                        Span::Text {
+                            content: "bold".to_string(),
+                            style: SpanStyle::BoldItalic,
+                        },
+                        Span::Text {
+                            content: " nested inside".to_string(),
+                            style: SpanStyle::Italic,
+                        },
+                        Span::Text {
+                            content: ".".to_string(),
+                            style: SpanStyle::Normal,
+                        },
+                    ]
+                }]
+            }
+        )
     }
 
     #[test]

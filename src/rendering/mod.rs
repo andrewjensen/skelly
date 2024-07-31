@@ -261,7 +261,7 @@ impl<'a> Renderer<'a> {
         let attrs_paragraph =
             attrs_default.metrics(Metrics::relative(font_size, line_height).scale(display_scale));
 
-        let attrs_heading = attrs_default.weight(Weight::BOLD);
+        let attrs_heading = attrs_default.clone();
         let attrs_h1 = attrs_heading
             .metrics(Metrics::relative(font_size * 2.0, line_height).scale(display_scale));
         let attrs_h2 = attrs_heading
