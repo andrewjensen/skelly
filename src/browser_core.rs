@@ -23,6 +23,8 @@ pub enum BrowserState {
     },
 }
 
+pub type ImagesByUrl = HashMap<String, Option<RgbaImage>>;
+
 pub struct BrowserCore {
     pub settings: Settings,
     pub state: BrowserState,
@@ -77,10 +79,10 @@ impl BrowserCore {
         // info!("Parsed document: {:#?}", document);
 
         info!("Fetching images...");
-        let _images = fetch_images(url, &document);
+        let images = fetch_images(url, &document).await;
 
         info!("Rendering pages...");
-        let mut renderer = Renderer::new(&self.settings.rendering);
+        let mut renderer = Renderer::new(&self.settings.rendering, url, images);
         let page_canvases = renderer.render_document(&document);
 
         self.state = BrowserState::ViewingPage {
@@ -99,10 +101,7 @@ impl BrowserCore {
     }
 }
 
-async fn fetch_images(
-    webpage_url: &str,
-    document: &Document,
-) -> HashMap<String, Option<RgbaImage>> {
+async fn fetch_images(webpage_url: &str, document: &Document) -> ImagesByUrl {
     let mut images = HashMap::new();
 
     let image_urls = get_image_urls(webpage_url, document);

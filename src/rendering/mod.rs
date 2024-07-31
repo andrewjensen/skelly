@@ -7,7 +7,9 @@ use image::{Pixel, Rgba, RgbaImage};
 use log::info;
 use std::fmt;
 
+use crate::browser_core::ImagesByUrl;
 use crate::keyboard::{add_keyboard_overlay, KeyboardState};
+use crate::network::resolve_url;
 use crate::parsing::{Block, Document, Span, SpanStyle};
 use crate::settings::RenderingSettings;
 
@@ -45,6 +47,8 @@ impl fmt::Debug for RenderedBlock {
 
 pub struct Renderer<'a> {
     rendering_settings: &'a RenderingSettings,
+    webpage_url: String,
+    images: ImagesByUrl,
     buffer: Buffer,
     font_system: FontSystem,
     swash_cache: SwashCache,
@@ -52,7 +56,11 @@ pub struct Renderer<'a> {
 }
 
 impl<'a> Renderer<'a> {
-    pub fn new(rendering_settings: &'a RenderingSettings) -> Self {
+    pub fn new(
+        rendering_settings: &'a RenderingSettings,
+        webpage_url: &str,
+        images: ImagesByUrl,
+    ) -> Self {
         let mut font_system = FontSystem::new();
         let swash_cache = SwashCache::new();
 
@@ -69,6 +77,8 @@ impl<'a> Renderer<'a> {
 
         Renderer {
             rendering_settings,
+            webpage_url: webpage_url.to_string(),
+            images,
             buffer,
             font_system,
             swash_cache,
@@ -181,6 +191,98 @@ impl<'a> Renderer<'a> {
     }
 
     fn render_block(&mut self, block: &Block) -> RenderedBlock {
+        match block {
+            Block::Image { url, alt_text } => {
+                return self.render_image_block(&url.clone(), alt_text.clone());
+            }
+            _ => {
+                return self.render_text_based_block(block);
+            }
+        }
+    }
+
+    fn render_image_block(&mut self, url: &str, alt_text: Option<String>) -> RenderedBlock {
+        let mut canvas = RgbaImage::new(CANVAS_WIDTH, BLOCK_CANVAS_INITIAL_HEIGHT);
+        for pixel in canvas.pixels_mut() {
+            *pixel = COLOR_BACKGROUND;
+        }
+
+        let resolved_url = resolve_url(&self.webpage_url, url);
+
+        let image_find_result = self.images.get(&resolved_url);
+
+        if let None = image_find_result {
+            let fake_height = 300;
+
+            let box_top_left = Point2::<u32> {
+                x: self.rendering_settings.screen_margin_x,
+                y: 0,
+            };
+
+            let box_bottom_right = Point2::<u32> {
+                x: CANVAS_WIDTH - self.rendering_settings.screen_margin_x,
+                y: fake_height - 1,
+            };
+
+            let color: Rgba<u8> = Rgba([0x00, 0x00, 0xFF, 0xFF]);
+
+            draw_filled_rectangle(box_top_left, box_bottom_right, color, &mut canvas);
+
+            return RenderedBlock {
+                height: fake_height,
+                canvas,
+                breakpoints: vec![0],
+            };
+        }
+
+        let image_load_result = image_find_result.unwrap();
+
+        if let None = image_load_result {
+            panic!("FIXME: handle case where image was attempted to be loaded but failed")
+        }
+        let image: &RgbaImage = image_load_result.as_ref().unwrap();
+
+        let image_width = image.width();
+        let image_height = image.height();
+
+        let available_content_width = CANVAS_WIDTH - (2 * self.rendering_settings.screen_margin_x);
+
+        if image_width > available_content_width {
+            panic!("FIXME: handle case where image is too wide to fit on the page and needs to be rescaled");
+        }
+
+        let mut canvas = RgbaImage::new(CANVAS_WIDTH, BLOCK_CANVAS_INITIAL_HEIGHT);
+
+        for (canvas_x, canvas_y, canvas_pixel) in canvas.enumerate_pixels_mut() {
+            if canvas_x < self.rendering_settings.screen_margin_x
+                || canvas_x >= CANVAS_WIDTH - self.rendering_settings.screen_margin_x
+                || canvas_x >= image_width + self.rendering_settings.screen_margin_x
+            {
+                *canvas_pixel = COLOR_BACKGROUND;
+                continue;
+            }
+
+            if canvas_y >= image_height {
+                *canvas_pixel = COLOR_BACKGROUND;
+                continue;
+            }
+
+            let image_x = canvas_x - self.rendering_settings.screen_margin_x;
+            let image_y = canvas_y;
+
+            *canvas_pixel = *image.get_pixel(image_x, image_y);
+        }
+
+        let breakpoints = vec![0];
+
+        RenderedBlock {
+            height: image_height,
+            canvas,
+            breakpoints,
+        }
+    }
+
+    fn render_text_based_block(&mut self, block: &Block) -> RenderedBlock {
         let mut canvas = RgbaImage::new(CANVAS_WIDTH, BLOCK_CANVAS_INITIAL_HEIGHT);
         for pixel in canvas.pixels_mut() {
             *pixel = COLOR_BACKGROUND;
