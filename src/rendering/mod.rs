@@ -4,7 +4,7 @@ use cosmic_text::{
     Weight,
 };
 use image::{Pixel, Rgba, RgbaImage};
-use log::info;
+use log::{debug, info};
 use std::fmt;
 
 use crate::browser_core::ImagesByUrl;
@@ -15,8 +15,10 @@ use crate::settings::RenderingSettings;
 
 use crate::{CANVAS_HEIGHT, CANVAS_MARGIN_BOTTOM, CANVAS_MARGIN_TOP, CANVAS_WIDTH, DEBUG_LAYOUT};
 
+mod images;
 mod progress;
 
+use images::rescale_image;
 use progress::add_progress_overlay;
 
 const COLOR_BACKGROUND: Rgba<u8> = Rgba([0xFF, 0xFF, 0xFF, 0xFF]);
@@ -103,7 +105,7 @@ impl<'a> Renderer<'a> {
             info!("Rendered block: {:?}", rendered_block);
 
             for (breakpoint_idx, breakpoint_y) in rendered_block.breakpoints.iter().enumerate() {
-                info!(
+                debug!(
                     "Breakpoint index {}, position {}",
                     breakpoint_idx, breakpoint_y
                 );
@@ -123,7 +125,7 @@ impl<'a> Renderer<'a> {
                     page_offset_y = CANVAS_MARGIN_TOP;
                 }
 
-                info!(
+                debug!(
                     "Adding block segment {} (block offset {}, height {}) to current page at page offset {}",
                     breakpoint_idx, breakpoint_y, block_segment_height, page_offset_y
                 );
@@ -243,13 +245,20 @@ impl<'a> Renderer<'a> {
         let image: &RgbaImage = image_load_result.as_ref().unwrap();
 
         let image_width = image.width();
-        let image_height = image.height();
-
         let available_content_width = CANVAS_WIDTH - (2 * self.rendering_settings.screen_margin_x);
 
-        if image_width > available_content_width {
-            panic!("FIXME: handle case where image is too wide to fit on the page and needs to be rescaled");
-        }
+        info!("Available content width: {}", available_content_width);
+
+        let image: &RgbaImage = {
+            if image_width <= available_content_width {
+                image
+            } else {
+                &rescale_image(image, available_content_width)
+            }
+        };
+
+        let image_width = image.width();
+        let image_height = image.height();
 
         let mut canvas = RgbaImage::new(CANVAS_WIDTH, BLOCK_CANVAS_INITIAL_HEIGHT);
 
