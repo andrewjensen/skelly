@@ -120,6 +120,7 @@ pub fn is_supported_image_content_type(content_type: &str) -> bool {
         "image/jpeg" => true,
         "image/png" => true,
         "image/gif" => true,
+        "image/webp" => true,
         _ => false,
     }
 }
