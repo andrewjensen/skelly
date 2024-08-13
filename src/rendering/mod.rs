@@ -15,10 +15,12 @@ use crate::settings::RenderingSettings;
 
 use crate::{CANVAS_HEIGHT, CANVAS_MARGIN_BOTTOM, CANVAS_MARGIN_TOP, CANVAS_WIDTH, DEBUG_LAYOUT};
 
+mod helpers;
 mod images;
 mod progress;
 
-use images::rescale_image;
+use helpers::{create_blank_canvas, draw_box_border, draw_filled_rectangle, draw_horizontal_line};
+use images::{render_placeholder_image_block, rescale_image};
 use progress::add_progress_overlay;
 
 const COLOR_BACKGROUND: Rgba<u8> = Rgba([0xFF, 0xFF, 0xFF, 0xFF]);
@@ -214,33 +216,19 @@ impl<'a> Renderer<'a> {
         let image_find_result = self.images.get(&resolved_url);
 
         if let None = image_find_result {
-            let fake_height = 300;
-
-            let box_top_left = Point2::<u32> {
-                x: self.rendering_settings.screen_margin_x,
-                y: 0,
-            };
-
-            let box_bottom_right = Point2::<u32> {
-                x: CANVAS_WIDTH - self.rendering_settings.screen_margin_x,
-                y: fake_height - 1,
-            };
-
-            let color: Rgba<u8> = Rgba([0x00, 0x00, 0xFF, 0xFF]);
-
-            draw_filled_rectangle(box_top_left, box_bottom_right, color, &mut canvas);
-
-            return RenderedBlock {
-                height: fake_height,
-                canvas,
-                breakpoints: vec![0],
-            };
+            return render_placeholder_image_block(
+                CANVAS_WIDTH,
+                self.rendering_settings.screen_margin_x,
+            );
         }
 
         let image_load_result = image_find_result.unwrap();
 
         if let None = image_load_result {
-            panic!("FIXME: handle case where image was attempted to be loaded but failed")
+            return render_placeholder_image_block(
+                CANVAS_WIDTH,
+                self.rendering_settings.screen_margin_x,
+            );
         }
         let image: &RgbaImage = image_load_result.as_ref().unwrap();
 
@@ -589,53 +577,6 @@ pub fn draw_layout_run<F>(
     }
 }
 
-pub fn draw_box_border(
-    box_top_left: Point2<u32>,
-    box_bottom_right: Point2<u32>,
-    color: Rgba<u8>,
-    page_canvas: &mut RgbaImage,
-) {
-    // Top and bottom borders
-    for x in box_top_left.x..box_bottom_right.x + 1 {
-        page_canvas.put_pixel(x, box_top_left.y, color);
-        page_canvas.put_pixel(x, box_bottom_right.y, color);
-    }
-
-    // Left and right borders
-    for y in box_top_left.y..box_bottom_right.y + 1 {
-        page_canvas.put_pixel(box_top_left.x, y, color);
-        page_canvas.put_pixel(box_bottom_right.x, y, color);
-    }
-}
-
-pub fn draw_filled_rectangle(
-    box_top_left: Point2<u32>,
-    box_bottom_right: Point2<u32>,
-    color: Rgba<u8>,
-    screen: &mut RgbaImage,
-) {
-    for x in box_top_left.x..box_bottom_right.x + 1 {
-        for y in box_top_left.y..box_bottom_right.y + 1 {
-            screen.put_pixel(x, y, color);
-        }
-    }
-}
-
-pub fn draw_horizontal_line(x1: u32, x2: u32, y: u32, color: Rgba<u8>, canvas: &mut RgbaImage) {
-    for x in x1..x2 + 1 {
-        canvas.put_pixel(x, y, color);
-    }
-}
-
-fn create_blank_canvas(width: u32, height: u32, background_color: Rgba<u8>) -> RgbaImage {
-    let mut canvas = RgbaImage::new(width, height);
-    for pixel in canvas.pixels_mut() {
-        *pixel = background_color;
-    }
-
-    canvas
-}
-
 fn copy_block_to_page_canvas(
     block_image: &RgbaImage,
     destination_canvas: &mut RgbaImage,
@@ -644,7 +585,7 @@ fn copy_block_to_page_canvas(
     offset_y: i32,
 ) {
     for block_x in block_top_left.x..block_bottom_right.x + 1 {
-        for block_y in block_top_left.y..block_bottom_right.y + 1 {
+        for block_y in block_top_left.y..block_bottom_right.y {
             let pixel = block_image.get_pixel(block_x, block_y);
 
             let destination_x = block_x;
