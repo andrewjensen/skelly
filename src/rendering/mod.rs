@@ -31,9 +31,6 @@ const COLOR_LINK: Color = Color::rgba(0x00, 0x00, 0xFF, 0xFF);
 const LINK_UNDERLINE_OFFSET_Y: i32 = 2;
 const LINK_UNDERLINE_THICKNESS: i32 = 2;
 
-// TODO: make this smaller to waste less RAM and grow when needed
-const BLOCK_CANVAS_INITIAL_HEIGHT: u32 = 2000;
-
 pub struct RenderedBlock {
     pub height: u32,
     pub canvas: RgbaImage,
@@ -205,12 +202,7 @@ impl<'a> Renderer<'a> {
         }
     }
 
-    fn render_image_block(&mut self, url: &str, alt_text: Option<String>) -> RenderedBlock {
-        let mut canvas = RgbaImage::new(CANVAS_WIDTH, BLOCK_CANVAS_INITIAL_HEIGHT);
-        for pixel in canvas.pixels_mut() {
-            *pixel = COLOR_BACKGROUND;
-        }
-
+    fn render_image_block(&mut self, url: &str, _alt_text: Option<String>) -> RenderedBlock {
         let resolved_url = resolve_url(&self.webpage_url, url);
 
         let image_find_result = self.images.get(&resolved_url);
@@ -248,7 +240,7 @@ impl<'a> Renderer<'a> {
         let image_width = image.width();
         let image_height = image.height();
 
-        let mut canvas = RgbaImage::new(CANVAS_WIDTH, BLOCK_CANVAS_INITIAL_HEIGHT);
+        let mut canvas = RgbaImage::new(CANVAS_WIDTH, image_height);
 
         for (canvas_x, canvas_y, canvas_pixel) in canvas.enumerate_pixels_mut() {
             if canvas_x < self.rendering_settings.screen_margin_x
@@ -280,11 +272,6 @@ impl<'a> Renderer<'a> {
     }
 
     fn render_text_based_block(&mut self, block: &Block) -> RenderedBlock {
-        let mut canvas = RgbaImage::new(CANVAS_WIDTH, BLOCK_CANVAS_INITIAL_HEIGHT);
-        for pixel in canvas.pixels_mut() {
-            *pixel = COLOR_BACKGROUND;
-        }
-
         let mut breakpoints = vec![];
 
         self.set_buffer_text(block);
@@ -296,6 +283,11 @@ impl<'a> Renderer<'a> {
         let rendered_block_height = layout_runs.last().map_or(0, |layout_run| {
             (layout_run.line_top + layout_run.line_height).ceil() as u32
         });
+
+        let mut canvas = RgbaImage::new(CANVAS_WIDTH, rendered_block_height);
+        for pixel in canvas.pixels_mut() {
+            *pixel = COLOR_BACKGROUND;
+        }
 
         for layout_run in layout_runs.iter() {
             draw_layout_run(
