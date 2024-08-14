@@ -400,6 +400,23 @@ fn parse_span(
                 style: SpanStyle::Code,
             }])
         }
+        "backslash_escape" => {
+            let text = node_span.utf8_text(source)?.to_string();
+            let text = match text.as_str() {
+                "\\[" => "[".to_string(),
+                "\\]" => "]".to_string(),
+                _ => format!("[TODO: handle backslash_escape content `{}`]", text),
+            };
+            info!("backslash escape {}", text);
+            Ok(vec![Span::Text {
+                content: text,
+                style: parent_style.clone(),
+            }])
+        }
+        "hard_line_break" => Ok(vec![Span::Text {
+            content: "\n".to_string(),
+            style: parent_style.clone(),
+        }]),
         other_kind => {
             let text = format!("[TODO: parse node `{}`]", other_kind);
             Ok(vec![Span::Text {
