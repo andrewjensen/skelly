@@ -27,15 +27,15 @@ pub fn rescale_image(raw_image: &RgbaImage, destination_width: u32) -> RgbaImage
     result.into_rgba8()
 }
 
-pub fn render_placeholder_image_block(canvas_width: u32, screen_margin_x: u32) -> RenderedBlock {
+pub fn render_placeholder_image_block(canvas_width: u32, screen_margin_left: u32) -> RenderedBlock {
     let mut canvas = RgbaImage::new(canvas_width, PLACEHOLDER_IMAGE_HEIGHT);
     let box_top_left = Point2::<u32> {
-        x: screen_margin_x,
+        x: screen_margin_left,
         y: 0,
     };
 
     let box_bottom_right = Point2::<u32> {
-        x: screen_margin_x + PLACEHOLDER_IMAGE_WIDTH,
+        x: screen_margin_left + PLACEHOLDER_IMAGE_WIDTH,
         y: PLACEHOLDER_IMAGE_HEIGHT - 1,
     };
 

@@ -25,7 +25,7 @@ pub enum Block {
         url: String,
     },
     BlockQuote {
-        content: String,
+        content: Vec<Block>,
     },
     ThematicBreak,
     CodeBlock {
@@ -268,8 +268,8 @@ fn parse_image(node_paragraph: &Node, source: &[u8]) -> Result<Block, ParseError
 }
 
 fn parse_block_quote(node_block_quote: &Node, source: &[u8]) -> Result<Block, ParseError> {
-    let content = temp_squash_block_text(node_block_quote, source)?;
-    Ok(Block::BlockQuote { content })
+    // TODO: implement
+    Ok(Block::BlockQuote { content: vec![] })
 }
 
 fn parse_code_block(node_fenced_code_block: &Node, source: &[u8]) -> Result<Block, ParseError> {
@@ -425,40 +425,6 @@ fn parse_span(
             }])
         }
     }
-}
-
-fn temp_squash_block_text(node_parent: &Node, source: &[u8]) -> Result<String, ParseError> {
-    let mut content = String::new();
-
-    let mut first = true;
-    let mut cursor = node_parent.walk();
-    for node_child in node_parent.named_children(&mut cursor) {
-        if !first {
-            content.push_str(" ");
-        }
-        first = false;
-
-        match node_child.kind() {
-            "text" => {
-                let node_text = node_child.utf8_text(source)?;
-                content.push_str(node_text);
-            }
-            "link" => {
-                let link = parse_link(&node_child, source)?;
-                content.push_str(&format!("[{}]({})", link.text, link.destination));
-            }
-            "strong_emphasis" => {
-                let node_emphasized_text = node_child.named_child(0).expect("Expected text node");
-                let emphasized_text = node_emphasized_text.utf8_text(source)?;
-                content.push_str(&format!("**{}**", emphasized_text));
-            }
-            _ => {
-                content.push_str(&format!("[TODO: handle node `{}`]", node_child.kind()));
-            }
-        }
-    }
-
-    Ok(content.trim().to_string())
 }
 
 fn parse_link(node_link: &Node, source: &[u8]) -> Result<Link, ParseError> {

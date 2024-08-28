@@ -26,7 +26,9 @@ use progress::add_progress_overlay;
 const COLOR_BACKGROUND: Rgba<u8> = Rgba([0xFF, 0xFF, 0xFF, 0xFF]);
 const COLOR_DEBUG_LAYOUT: Rgba<u8> = Rgba([0x00, 0xFF, 0xFF, 0xFF]);
 
+const COLOR_TEXT: Color = Color::rgba(0x00, 0x00, 0x00, 0xFF);
 const COLOR_LINK: Color = Color::rgba(0x00, 0x00, 0xFF, 0xFF);
+const COLOR_BLOCKQUOTE_BORDER: Rgba<u8> = Rgba([0x00, 0x00, 0x00, 0xFF]);
 
 const LINK_UNDERLINE_OFFSET_Y: i32 = 2;
 const LINK_UNDERLINE_THICKNESS: i32 = 2;
@@ -35,6 +37,13 @@ pub struct RenderedBlock {
     pub height: u32,
     pub canvas: RgbaImage,
     pub breakpoints: Vec<u32>,
+}
+
+#[derive(Debug)]
+struct BlockRenderSettings {
+    pub canvas_width: u32,
+    pub margin_left: u32,
+    pub margin_right: u32,
 }
 
 impl fmt::Debug for RenderedBlock {
@@ -96,10 +105,16 @@ impl<'a> Renderer<'a> {
 
         let max_y = CANVAS_HEIGHT - CANVAS_MARGIN_BOTTOM;
 
+        let default_render_settings = BlockRenderSettings {
+            canvas_width: CANVAS_WIDTH,
+            margin_left: self.rendering_settings.screen_margin_x,
+            margin_right: self.rendering_settings.screen_margin_x,
+        };
+
         for (block_idx, block) in document.blocks.iter().enumerate() {
             info!("Rendering block {}...", block_idx);
 
-            let rendered_block = self.render_block(block);
+            let rendered_block = self.render_block(block, &default_render_settings);
 
             info!("Rendered block: {:?}", rendered_block);
 
@@ -191,41 +206,44 @@ impl<'a> Renderer<'a> {
         finished_page_canvases
     }
 
-    fn render_block(&mut self, block: &Block) -> RenderedBlock {
+    fn render_block(&mut self, block: &Block, settings: &BlockRenderSettings) -> RenderedBlock {
         match block {
             Block::Image { url, alt_text } => {
-                return self.render_image_block(&url.clone(), alt_text.clone());
+                return self.render_image_block(&url.clone(), alt_text.clone(), settings);
+            }
+            Block::BlockQuote { content } => {
+                return self.render_blockquote_block(content, settings);
             }
             _ => {
-                return self.render_text_based_block(block);
+                return self.render_text_based_block(block, settings);
             }
         }
     }
 
-    fn render_image_block(&mut self, url: &str, _alt_text: Option<String>) -> RenderedBlock {
+    fn render_image_block(
+        &mut self,
+        url: &str,
+        _alt_text: Option<String>,
+        settings: &BlockRenderSettings,
+    ) -> RenderedBlock {
         let resolved_url = resolve_url(&self.webpage_url, url);
 
         let image_find_result = self.images.get(&resolved_url);
 
         if let None = image_find_result {
-            return render_placeholder_image_block(
-                CANVAS_WIDTH,
-                self.rendering_settings.screen_margin_x,
-            );
+            return render_placeholder_image_block(settings.canvas_width, settings.margin_left);
         }
 
         let image_load_result = image_find_result.unwrap();
 
         if let None = image_load_result {
-            return render_placeholder_image_block(
-                CANVAS_WIDTH,
-                self.rendering_settings.screen_margin_x,
-            );
+            return render_placeholder_image_block(settings.canvas_width, settings.margin_left);
         }
         let image: &RgbaImage = image_load_result.as_ref().unwrap();
 
         let image_width = image.width();
-        let available_content_width = CANVAS_WIDTH - (2 * self.rendering_settings.screen_margin_x);
+        let available_content_width =
+            settings.canvas_width - settings.margin_left - settings.margin_right;
 
         info!("Available content width: {}", available_content_width);
 
@@ -243,9 +261,9 @@ impl<'a> Renderer<'a> {
         let mut canvas = RgbaImage::new(CANVAS_WIDTH, image_height);
 
         for (canvas_x, canvas_y, canvas_pixel) in canvas.enumerate_pixels_mut() {
-            if canvas_x < self.rendering_settings.screen_margin_x
-                || canvas_x >= CANVAS_WIDTH - self.rendering_settings.screen_margin_x
-                || canvas_x >= image_width + self.rendering_settings.screen_margin_x
+            if canvas_x < settings.margin_left
+                || canvas_x >= settings.canvas_width - settings.margin_right
+                || canvas_x >= image_width + settings.margin_left
             {
                 *canvas_pixel = COLOR_BACKGROUND;
                 continue;
@@ -256,7 +274,7 @@ impl<'a> Renderer<'a> {
                 continue;
             }
 
-            let image_x = canvas_x - self.rendering_settings.screen_margin_x;
+            let image_x = canvas_x - settings.margin_left;
             let image_y = canvas_y;
 
             *canvas_pixel = *image.get_pixel(image_x, image_y);
@@ -271,12 +289,45 @@ impl<'a> Renderer<'a> {
         }
     }
 
-    fn render_text_based_block(&mut self, block: &Block) -> RenderedBlock {
+    fn render_blockquote_block(
+        &mut self,
+        content: &Vec<Block>,
+        settings: &BlockRenderSettings,
+    ) -> RenderedBlock {
+        let breakpoints = vec![0];
+
+        let mock_height: u32 = 100;
+
+        let mut canvas = RgbaImage::new(CANVAS_WIDTH, mock_height);
+        for pixel in canvas.pixels_mut() {
+            *pixel = COLOR_DEBUG_LAYOUT;
+        }
+
+        for y in 0..mock_height {
+            for x in settings.margin_left..settings.margin_left + 10 {
+                *canvas.get_pixel_mut(x, y) = COLOR_BLOCKQUOTE_BORDER;
+            }
+        }
+
+        RenderedBlock {
+            height: mock_height,
+            canvas,
+            breakpoints,
+        }
+    }
+
+    fn render_text_based_block(
+        &mut self,
+        block: &Block,
+        settings: &BlockRenderSettings,
+    ) -> RenderedBlock {
         let mut breakpoints = vec![];
 
         self.set_buffer_text(block);
 
-        let text_color = Color::rgba(0x00, 0x00, 0x00, 0xFF);
+        let buffer_width = settings.canvas_width - settings.margin_left - settings.margin_right;
+        self.buffer
+            .set_size(&mut self.font_system, Some(buffer_width as f32), None);
 
         let layout_runs: Vec<LayoutRun> = self.buffer.layout_runs().collect();
 
@@ -295,9 +346,9 @@ impl<'a> Renderer<'a> {
                 0,
                 &mut self.font_system,
                 &mut self.swash_cache,
-                text_color,
+                COLOR_TEXT,
                 |buffer_x, buffer_y, color| {
-                    let canvas_x = buffer_x + self.rendering_settings.screen_margin_x as i32;
+                    let canvas_x = buffer_x + settings.margin_left as i32;
                     let canvas_y = buffer_y;
 
                     if canvas_x < 0 || canvas_x >= canvas.width() as i32 {
@@ -485,8 +536,8 @@ impl<'a> Renderer<'a> {
                 }
                 spans.push(("\n\n", attrs_paragraph));
             }
-            Block::BlockQuote { content } => {
-                spans.push((content, attrs_block_quote));
+            Block::BlockQuote { content: _ } => {
+                spans.push(("(TODO: render Block::BlockQuote)", attrs_block_quote));
                 spans.push(("\n\n", attrs_block_quote));
             }
             Block::ThematicBreak => {
