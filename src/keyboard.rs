@@ -1,6 +1,5 @@
 use cosmic_text::{Attrs, Buffer, Color, FontSystem, Metrics, Shaping, SwashCache, Wrap};
 use image::{Pixel, Rgba, RgbaImage};
-use log::info;
 
 pub enum KeyboardState {
     Hidden,
