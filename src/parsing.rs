@@ -416,6 +416,7 @@ fn parse_span(
             let text = match text.as_str() {
                 "\\[" => "[".to_string(),
                 "\\]" => "]".to_string(),
+                "\\_" => "_".to_string(),
                 _ => format!("[TODO: handle backslash_escape content `{}`]", text),
             };
             info!("backslash escape {}", text);
