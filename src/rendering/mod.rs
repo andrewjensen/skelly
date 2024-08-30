@@ -33,13 +33,17 @@ const COLOR_BLOCKQUOTE_BORDER: Rgba<u8> = Rgba([0x00, 0x00, 0x00, 0xFF]);
 const LINK_UNDERLINE_OFFSET_Y: i32 = 2;
 const LINK_UNDERLINE_THICKNESS: i32 = 2;
 
+const INDENT_MARGIN_LEFT_EMS: u32 = 2;
+
+const BLOCKQUOTE_BORDER_WIDTH: u32 = 5;
+
 pub struct RenderedBlock {
     pub height: u32,
     pub canvas: RgbaImage,
     pub breakpoints: Vec<u32>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct BlockRenderSettings {
     pub canvas_width: u32,
     pub margin_left: u32,
@@ -294,23 +298,56 @@ impl<'a> Renderer<'a> {
         content: &Vec<Block>,
         settings: &BlockRenderSettings,
     ) -> RenderedBlock {
-        let breakpoints = vec![0];
+        let mut child_settings: BlockRenderSettings = settings.clone();
+        let indent_left = INDENT_MARGIN_LEFT_EMS * self.rendering_settings.font_size;
+        child_settings.margin_left += indent_left;
 
-        let mock_height: u32 = 100;
+        let mut offset_y = 0;
+        let mut breakpoints = vec![];
+        let mut rendered_children: Vec<RenderedBlock> = vec![];
 
-        let mut canvas = RgbaImage::new(CANVAS_WIDTH, mock_height);
-        for pixel in canvas.pixels_mut() {
-            *pixel = COLOR_DEBUG_LAYOUT;
+        for child_block in content {
+            let rendered_child = self.render_block(child_block, &child_settings);
+
+            for breakpoint in rendered_child.breakpoints.iter() {
+                breakpoints.push(offset_y + breakpoint);
+            }
+
+            offset_y += rendered_child.height;
+
+            rendered_children.push(rendered_child);
         }
 
-        for y in 0..mock_height {
-            for x in settings.margin_left..settings.margin_left + 10 {
+        let total_height = offset_y;
+
+        let mut canvas = RgbaImage::new(CANVAS_WIDTH, total_height);
+
+        for pixel in canvas.pixels_mut() {
+            *pixel = COLOR_BACKGROUND;
+        }
+
+        offset_y = 0;
+        for rendered_child in rendered_children.iter() {
+            for y in 0..rendered_child.height {
+                for x in 0..settings.canvas_width {
+                    let canvas_pixel = canvas.get_pixel_mut(x, y + offset_y);
+                    let child_pixel = rendered_child.canvas.get_pixel(x, y);
+
+                    *canvas_pixel = *child_pixel;
+                }
+            }
+
+            offset_y += rendered_child.height;
+        }
+
+        for y in 0..total_height {
+            for x in settings.margin_left..settings.margin_left + BLOCKQUOTE_BORDER_WIDTH {
                 *canvas.get_pixel_mut(x, y) = COLOR_BLOCKQUOTE_BORDER;
             }
         }
 
         RenderedBlock {
-            height: mock_height,
+            height: total_height,
             canvas,
             breakpoints,
         }

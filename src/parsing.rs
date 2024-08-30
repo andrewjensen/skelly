@@ -114,25 +114,17 @@ pub fn parse_webpage(page_html: &str) -> Result<Document, ParseError> {
 
     // info!("Tree: {}", tree.root_node().to_sexp());
 
-    let mut blocks = vec![];
-
     let node_doc = tree.root_node();
 
     if node_doc.kind() != "document" {
         panic!("Expected root node to be a document");
     }
 
-    let mut cursor = node_doc.walk();
-    for node_block in node_doc.named_children(&mut cursor) {
-        let block_result = parse_block(&node_block, source);
-        if let Err(block_error) = block_result {
-            return Err(block_error);
-        }
-        let block = block_result.unwrap();
-        blocks.push(block);
-    }
+    let child_blocks = parse_child_blocks(&node_doc, source)?;
 
-    Ok(Document { blocks })
+    Ok(Document {
+        blocks: child_blocks,
+    })
 }
 
 fn figcaption_handler(element: Element) -> Option<String> {
@@ -141,6 +133,22 @@ fn figcaption_handler(element: Element) -> Option<String> {
 
 fn definition_list_handler(element: Element) -> Option<String> {
     Some(format!("{}\n\n", element.content))
+}
+
+fn parse_child_blocks(parent_block: &Node, source: &[u8]) -> Result<Vec<Block>, ParseError> {
+    let mut cursor = parent_block.walk();
+    let mut blocks = vec![];
+
+    for node_block in parent_block.named_children(&mut cursor) {
+        let block_result = parse_block(&node_block, source);
+        if let Err(block_error) = block_result {
+            return Err(block_error);
+        }
+        let block = block_result.unwrap();
+        blocks.push(block);
+    }
+
+    Ok(blocks)
 }
 
 fn parse_block(node_block: &Node, source: &[u8]) -> Result<Block, ParseError> {
@@ -268,8 +276,11 @@ fn parse_image(node_paragraph: &Node, source: &[u8]) -> Result<Block, ParseError
 }
 
 fn parse_block_quote(node_block_quote: &Node, source: &[u8]) -> Result<Block, ParseError> {
-    // TODO: implement
-    Ok(Block::BlockQuote { content: vec![] })
+    let child_blocks = parse_child_blocks(node_block_quote, source)?;
+
+    Ok(Block::BlockQuote {
+        content: child_blocks,
+    })
 }
 
 fn parse_code_block(node_fenced_code_block: &Node, source: &[u8]) -> Result<Block, ParseError> {
