@@ -36,7 +36,14 @@ pub enum Block {
 
 #[derive(Debug, PartialEq)]
 pub struct ListItem {
+    pub marker: ListMarker,
     pub content: Vec<Span>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ListMarker {
+    Bullet,
+    Ordered { content: String },
 }
 
 #[derive(Debug, PartialEq)]
@@ -326,36 +333,46 @@ fn parse_code_block(node_fenced_code_block: &Node, source: &[u8]) -> Result<Bloc
 }
 
 fn parse_list(node_list: &Node, source: &[u8]) -> Result<Block, ParseError> {
-    let mut items = vec![];
+    let mut items: Vec<ListItem> = vec![];
 
     let mut cursor = node_list.walk();
     for node_list_item in node_list.named_children(&mut cursor) {
         let node_list_item = expect_node_kind(Some(node_list_item), "list_item")?;
-
-        let mut nested_cursor = node_list_item.walk();
-        if node_list_item.named_children(&mut nested_cursor).count() == 2
-            && node_list_item.named_child(0).unwrap().kind() == "list_marker"
-            && node_list_item.named_child(1).unwrap().kind() == "paragraph"
-        {
-            let node_paragraph = expect_node_kind(node_list_item.named_child(1), "paragraph")?;
-
-            let list_item_spans = flatten_child_spans(&node_paragraph, &SpanStyle::Normal, source)?;
-            let item = ListItem {
-                content: list_item_spans,
-            };
-            items.push(item);
-        } else {
-            let item = ListItem {
-                content: vec![Span::Text {
-                    style: SpanStyle::Normal,
-                    content: "(complex list item)".to_string(),
-                }],
-            };
-            items.push(item);
-        }
+        let item = parse_list_item(&node_list_item, source)?;
+        items.push(item);
     }
 
     Ok(Block::List { items })
+}
+
+fn parse_list_item(node_list_item: &Node, source: &[u8]) -> Result<ListItem, ParseError> {
+    let temp_marker = node_list_item.named_child(0).unwrap();
+    let temp_marker_text = temp_marker.utf8_text(source)?.to_string();
+    info!("List item marker: {}", temp_marker_text);
+
+    let mut nested_cursor = node_list_item.walk();
+    if node_list_item.named_children(&mut nested_cursor).count() == 2
+        && node_list_item.named_child(0).unwrap().kind() == "list_marker"
+        && node_list_item.named_child(1).unwrap().kind() == "paragraph"
+    {
+        let node_paragraph = expect_node_kind(node_list_item.named_child(1), "paragraph")?;
+
+        let list_item_spans = flatten_child_spans(&node_paragraph, &SpanStyle::Normal, source)?;
+        let item = ListItem {
+            marker: ListMarker::Bullet,
+            content: list_item_spans,
+        };
+        return Ok(item);
+    } else {
+        let item = ListItem {
+            marker: ListMarker::Bullet,
+            content: vec![Span::Text {
+                style: SpanStyle::Normal,
+                content: "(complex list item)".to_string(),
+            }],
+        };
+        return Ok(item);
+    }
 }
 
 fn flatten_child_spans(
@@ -817,12 +834,14 @@ mod test {
                     Block::List {
                         items: vec![
                             ListItem {
+                                marker: ListMarker::Bullet,
                                 content: vec![Span::Text {
                                     content: "Cat".to_string(),
                                     style: SpanStyle::Normal,
                                 },]
                             },
                             ListItem {
+                                marker: ListMarker::Bullet,
                                 content: vec![
                                     Span::Text {
                                         content: "Cat with some ".to_string(),
@@ -835,12 +854,14 @@ mod test {
                                 ]
                             },
                             ListItem {
+                                marker: ListMarker::Bullet,
                                 content: vec![Span::Text {
                                     content: "(complex list item)".to_string(),
                                     style: SpanStyle::Normal,
                                 },]
                             },
                             ListItem {
+                                marker: ListMarker::Bullet,
                                 content: vec![Span::Text {
                                     content: "Crocodile".to_string(),
                                     style: SpanStyle::Normal,
