@@ -1,7 +1,10 @@
+use image::{ImageFormat, RgbaImage};
 use log::{error, info};
 use std::env;
+use std::io::Cursor;
 use std::process;
-use tokio::task::spawn_blocking;
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
 
 mod browser_core;
 mod debugging;
@@ -25,7 +28,7 @@ pub const DEBUG_LAYOUT: bool = false;
 
 #[cfg(feature = "static")]
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     env_logger::init();
 
     // Get the first command line argument and log it out
@@ -54,17 +57,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     info!("Saving pages to PNG files...");
-    spawn_blocking(move || {
-        for page in browser.get_pages().iter().enumerate() {
-            let (page_idx, page_canvas) = page;
-
+    let handles: Vec<_> = browser
+        .get_pages()
+        .iter()
+        .enumerate()
+        .map(|(page_idx, page_canvas)| {
             let file_path = format!("./output/page-{}.png", page_idx);
-            page_canvas.save(&file_path).expect("Failed to save image");
-        }
-    })
-    .await?;
+            let page_canvas = page_canvas.clone();
+
+            tokio::spawn(async move { save_page_canvas(page_canvas, &file_path).await })
+        })
+        .collect();
+
+    for handle in handles {
+        handle.await??;
+    }
 
     info!("Done");
+
+    Ok(())
+}
+
+async fn save_page_canvas(
+    page_canvas: RgbaImage,
+    file_path: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut png_buffer = Cursor::new(Vec::new());
+    page_canvas.write_to(&mut png_buffer, ImageFormat::Png)?;
+
+    let mut file = File::create(file_path).await?;
+    file.write_all(&png_buffer.into_inner()).await?;
 
     Ok(())
 }
