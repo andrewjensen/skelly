@@ -37,7 +37,7 @@ pub enum Block {
 #[derive(Debug, PartialEq)]
 pub struct ListItem {
     pub marker: ListMarker,
-    pub content: Vec<Span>,
+    pub content: Vec<Block>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -152,34 +152,37 @@ fn parse_child_blocks(parent_block: &Node, source: &[u8]) -> Result<Vec<Block>, 
             return Err(block_error);
         }
         let block = block_result.unwrap();
-        blocks.push(block);
+        if let Some(block) = block {
+            blocks.push(block);
+        }
     }
 
     Ok(blocks)
 }
 
-fn parse_block(node_block: &Node, source: &[u8]) -> Result<Block, ParseError> {
+fn parse_block(node_block: &Node, source: &[u8]) -> Result<Option<Block>, ParseError> {
     match node_block.kind() {
         "atx_heading" => parse_heading(node_block, source),
         "paragraph" => parse_paragraph(node_block, source),
         "tight_list" => parse_list(node_block, source),
         "loose_list" => parse_list(node_block, source),
         "block_quote" => parse_block_quote(node_block, source),
-        "thematic_break" => Ok(Block::ThematicBreak),
+        "thematic_break" => Ok(Some(Block::ThematicBreak)),
         "fenced_code_block" => parse_code_block(node_block, source),
-        "html_block" => Ok(Block::Paragraph {
+        "html_block" => Ok(Some(Block::Paragraph {
             content: vec![Span::Text {
                 content: "(HTML block)".to_string(),
                 style: SpanStyle::Normal,
             }],
-        }),
+        })),
+        "list_marker" => Ok(None),
         _ => Err(ParseError::UnexpectedNodeKind(
             node_block.kind().to_string(),
         )),
     }
 }
 
-fn parse_heading(node_heading: &Node, source: &[u8]) -> Result<Block, ParseError> {
+fn parse_heading(node_heading: &Node, source: &[u8]) -> Result<Option<Block>, ParseError> {
     let mut cursor = node_heading.walk();
 
     cursor.goto_first_child();
@@ -217,13 +220,13 @@ fn parse_heading(node_heading: &Node, source: &[u8]) -> Result<Block, ParseError
         }
     }
 
-    Ok(Block::Heading {
+    Ok(Some(Block::Heading {
         level,
         content: spans,
-    })
+    }))
 }
 
-fn parse_paragraph(node_paragraph: &Node, source: &[u8]) -> Result<Block, ParseError> {
+fn parse_paragraph(node_paragraph: &Node, source: &[u8]) -> Result<Option<Block>, ParseError> {
     // If the paragraph contains an image and nothing else, create a Block::Image
     let mut cursor = node_paragraph.walk();
     let mut has_image = false;
@@ -242,10 +245,10 @@ fn parse_paragraph(node_paragraph: &Node, source: &[u8]) -> Result<Block, ParseE
 
     let spans = flatten_child_spans(node_paragraph, &SpanStyle::Normal, source)?;
 
-    Ok(Block::Paragraph { content: spans })
+    Ok(Some(Block::Paragraph { content: spans }))
 }
 
-fn parse_image(node_paragraph: &Node, source: &[u8]) -> Result<Block, ParseError> {
+fn parse_image(node_paragraph: &Node, source: &[u8]) -> Result<Option<Block>, ParseError> {
     let mut cursor = node_paragraph.walk();
     let node_image = expect_node_kind(node_paragraph.named_child(0), "image")?;
 
@@ -279,18 +282,21 @@ fn parse_image(node_paragraph: &Node, source: &[u8]) -> Result<Block, ParseError
         None => None,
     };
 
-    Ok(Block::Image { url, alt_text })
+    Ok(Some(Block::Image { url, alt_text }))
 }
 
-fn parse_block_quote(node_block_quote: &Node, source: &[u8]) -> Result<Block, ParseError> {
+fn parse_block_quote(node_block_quote: &Node, source: &[u8]) -> Result<Option<Block>, ParseError> {
     let child_blocks = parse_child_blocks(node_block_quote, source)?;
 
-    Ok(Block::BlockQuote {
+    Ok(Some(Block::BlockQuote {
         content: child_blocks,
-    })
+    }))
 }
 
-fn parse_code_block(node_fenced_code_block: &Node, source: &[u8]) -> Result<Block, ParseError> {
+fn parse_code_block(
+    node_fenced_code_block: &Node,
+    source: &[u8],
+) -> Result<Option<Block>, ParseError> {
     let mut cursor = node_fenced_code_block.walk();
 
     let node_info_string = node_fenced_code_block
@@ -329,10 +335,10 @@ fn parse_code_block(node_fenced_code_block: &Node, source: &[u8]) -> Result<Bloc
         }
     }
 
-    Ok(Block::CodeBlock { language, content })
+    Ok(Some(Block::CodeBlock { language, content }))
 }
 
-fn parse_list(node_list: &Node, source: &[u8]) -> Result<Block, ParseError> {
+fn parse_list(node_list: &Node, source: &[u8]) -> Result<Option<Block>, ParseError> {
     let mut items: Vec<ListItem> = vec![];
 
     let mut cursor = node_list.walk();
@@ -342,7 +348,7 @@ fn parse_list(node_list: &Node, source: &[u8]) -> Result<Block, ParseError> {
         items.push(item);
     }
 
-    Ok(Block::List { items })
+    Ok(Some(Block::List { items }))
 }
 
 fn parse_list_item(node_list_item: &Node, source: &[u8]) -> Result<ListItem, ParseError> {
@@ -350,29 +356,15 @@ fn parse_list_item(node_list_item: &Node, source: &[u8]) -> Result<ListItem, Par
     let temp_marker_text = temp_marker.utf8_text(source)?.to_string();
     info!("List item marker: {}", temp_marker_text);
 
-    let mut nested_cursor = node_list_item.walk();
-    if node_list_item.named_children(&mut nested_cursor).count() == 2
-        && node_list_item.named_child(0).unwrap().kind() == "list_marker"
-        && node_list_item.named_child(1).unwrap().kind() == "paragraph"
-    {
-        let node_paragraph = expect_node_kind(node_list_item.named_child(1), "paragraph")?;
+    let _node_list_marker = expect_node_kind(node_list_item.named_child(0), "list_marker")?;
+    // TODO: pass the type of the list marker
 
-        let list_item_spans = flatten_child_spans(&node_paragraph, &SpanStyle::Normal, source)?;
-        let item = ListItem {
-            marker: ListMarker::Bullet,
-            content: list_item_spans,
-        };
-        return Ok(item);
-    } else {
-        let item = ListItem {
-            marker: ListMarker::Bullet,
-            content: vec![Span::Text {
-                style: SpanStyle::Normal,
-                content: "(complex list item)".to_string(),
-            }],
-        };
-        return Ok(item);
-    }
+    let child_blocks = parse_child_blocks(node_list_item, source)?;
+
+    Ok(ListItem {
+        marker: ListMarker::Bullet,
+        content: child_blocks,
+    })
 }
 
 fn flatten_child_spans(
@@ -837,37 +829,69 @@ mod test {
                         items: vec![
                             ListItem {
                                 marker: ListMarker::Bullet,
-                                content: vec![Span::Text {
-                                    content: "Cat".to_string(),
-                                    style: SpanStyle::Normal,
-                                },]
+                                content: vec![Block::Paragraph {
+                                    content: vec![Span::Text {
+                                        content: "Cat".to_string(),
+                                        style: SpanStyle::Normal,
+                                    }]
+                                }]
+                            },
+                            ListItem {
+                                marker: ListMarker::Bullet,
+                                content: vec![Block::Paragraph {
+                                    content: vec![
+                                        Span::Text {
+                                            content: "Cat with some ".to_string(),
+                                            style: SpanStyle::Normal,
+                                        },
+                                        Span::Text {
+                                            content: "style".to_string(),
+                                            style: SpanStyle::Italic,
+                                        },
+                                    ]
+                                }]
                             },
                             ListItem {
                                 marker: ListMarker::Bullet,
                                 content: vec![
-                                    Span::Text {
-                                        content: "Cat with some ".to_string(),
-                                        style: SpanStyle::Normal,
+                                    Block::Paragraph {
+                                        content: vec![Span::Text {
+                                            content: "Dog".to_string(),
+                                            style: SpanStyle::Normal,
+                                        }]
                                     },
-                                    Span::Text {
-                                        content: "style".to_string(),
-                                        style: SpanStyle::Italic,
+                                    Block::List {
+                                        items: vec![
+                                            ListItem {
+                                                marker: ListMarker::Bullet,
+                                                content: vec![Block::Paragraph {
+                                                    content: vec![Span::Text {
+                                                        content: "Golden Retriever".to_string(),
+                                                        style: SpanStyle::Normal,
+                                                    }]
+                                                }]
+                                            },
+                                            ListItem {
+                                                marker: ListMarker::Bullet,
+                                                content: vec![Block::Paragraph {
+                                                    content: vec![Span::Text {
+                                                        content: "Labrador".to_string(),
+                                                        style: SpanStyle::Normal,
+                                                    }]
+                                                }]
+                                            },
+                                        ]
                                     },
                                 ]
                             },
                             ListItem {
                                 marker: ListMarker::Bullet,
-                                content: vec![Span::Text {
-                                    content: "(complex list item)".to_string(),
-                                    style: SpanStyle::Normal,
-                                },]
-                            },
-                            ListItem {
-                                marker: ListMarker::Bullet,
-                                content: vec![Span::Text {
-                                    content: "Crocodile".to_string(),
-                                    style: SpanStyle::Normal,
-                                },]
+                                content: vec![Block::Paragraph {
+                                    content: vec![Span::Text {
+                                        content: "Crocodile".to_string(),
+                                        style: SpanStyle::Normal,
+                                    }]
+                                }]
                             },
                         ],
                     }

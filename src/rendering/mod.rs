@@ -10,7 +10,7 @@ use std::fmt;
 use crate::browser_core::ImagesByUrl;
 use crate::keyboard::{add_keyboard_overlay, KeyboardState};
 use crate::network::resolve_url;
-use crate::parsing::{Block, Document, Span, SpanStyle};
+use crate::parsing::{Block, Document, ListItem, Span, SpanStyle};
 use crate::settings::RenderingSettings;
 
 use crate::{CANVAS_HEIGHT, CANVAS_MARGIN_BOTTOM, CANVAS_MARGIN_TOP, CANVAS_WIDTH, DEBUG_LAYOUT};
@@ -218,6 +218,9 @@ impl<'a> Renderer<'a> {
             Block::BlockQuote { content } => {
                 return self.render_blockquote_block(content, settings);
             }
+            Block::List { items } => {
+                return self.render_list_block(items, settings);
+            }
             _ => {
                 return self.render_text_based_block(block, settings);
             }
@@ -348,6 +351,23 @@ impl<'a> Renderer<'a> {
 
         RenderedBlock {
             height: total_height,
+            canvas,
+            breakpoints,
+        }
+    }
+
+    fn render_list_block(
+        &mut self,
+        list_items: &Vec<ListItem>,
+        settings: &BlockRenderSettings,
+    ) -> RenderedBlock {
+        let mock_height = 100;
+
+        let canvas = RgbaImage::new(CANVAS_WIDTH, mock_height);
+        let breakpoints = vec![];
+
+        RenderedBlock {
+            height: 100,
             canvas,
             breakpoints,
         }
@@ -532,36 +552,8 @@ impl<'a> Renderer<'a> {
                 }
                 spans.push(("\n\n", attrs_paragraph));
             }
-            Block::List { items } => {
-                for item in items.iter() {
-                    spans.push(("• ", attrs_paragraph));
-                    for span in item.content.iter() {
-                        // TODO: refactor
-                        match &span {
-                            &Span::Text {
-                                content,
-                                style: span_style,
-                            } => {
-                                let attrs = match span_style {
-                                    SpanStyle::Normal => attrs_paragraph,
-                                    SpanStyle::Bold => attrs_paragraph.weight(Weight::BOLD),
-                                    SpanStyle::Italic => attrs_paragraph.style(Style::Italic),
-                                    SpanStyle::BoldItalic => {
-                                        attrs_paragraph.weight(Weight::BOLD).style(Style::Italic)
-                                    }
-                                    SpanStyle::Code => attrs_paragraph.family(Family::Monospace),
-                                };
-
-                                spans.push((&content, attrs));
-                            }
-                            &Span::Link(link) => {
-                                spans.push((&link.text, attrs_paragraph.color(COLOR_LINK)));
-                            }
-                        }
-                    }
-                    spans.push(("\n", attrs_paragraph));
-                }
-                spans.push(("\n", attrs_paragraph));
+            Block::List { items: _ } => {
+                unreachable!();
             }
             Block::Image { alt_text, url } => {
                 spans.push(("(TODO: render Block::Image)", attrs_paragraph));
@@ -574,8 +566,7 @@ impl<'a> Renderer<'a> {
                 spans.push(("\n\n", attrs_paragraph));
             }
             Block::BlockQuote { content: _ } => {
-                spans.push(("(TODO: render Block::BlockQuote)", attrs_block_quote));
-                spans.push(("\n\n", attrs_block_quote));
+                unreachable!();
             }
             Block::ThematicBreak => {
                 spans.push(("---\n\n", attrs_default));
