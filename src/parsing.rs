@@ -524,6 +524,8 @@ fn expect_node_kind<'s, 'n>(
 
 #[cfg(test)]
 mod test {
+    use pretty_assertions::assert_eq;
+
     use super::*;
 
     fn create_html_document(inner_content: &str) -> String {

@@ -36,3 +36,6 @@ libremarkable = { optional = true, version = "0.6.2", default-features = false, 
 default = ["static"]
 remarkable = ["libremarkable"]
 static = []
+
+[dev-dependencies]
+pretty_assertions = "1"
