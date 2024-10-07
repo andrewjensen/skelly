@@ -361,13 +361,109 @@ impl<'a> Renderer<'a> {
         list_items: &Vec<ListItem>,
         settings: &BlockRenderSettings,
     ) -> RenderedBlock {
-        let mock_height = 100;
+        let list_item_settings: BlockRenderSettings = settings.clone();
 
-        let canvas = RgbaImage::new(CANVAS_WIDTH, mock_height);
-        let breakpoints = vec![];
+        let mut offset_y = 0;
+        let mut breakpoints = vec![];
+        let mut rendered_list_items: Vec<RenderedBlock> = vec![];
+
+        for child_list_item in list_items {
+            let rendered_list_item = self.render_list_item(child_list_item, &list_item_settings);
+
+            for breakpoint in rendered_list_item.breakpoints.iter() {
+                breakpoints.push(offset_y + breakpoint);
+            }
+
+            offset_y += rendered_list_item.height;
+
+            rendered_list_items.push(rendered_list_item);
+        }
+
+        let total_height = offset_y;
+
+        let mut canvas = RgbaImage::new(CANVAS_WIDTH, total_height);
+
+        for pixel in canvas.pixels_mut() {
+            *pixel = COLOR_BACKGROUND;
+        }
+
+        offset_y = 0;
+        for rendered_list_item in rendered_list_items.iter() {
+            for y in 0..rendered_list_item.height {
+                for x in 0..settings.canvas_width {
+                    let canvas_pixel = canvas.get_pixel_mut(x, y + offset_y);
+                    let child_pixel = rendered_list_item.canvas.get_pixel(x, y);
+
+                    *canvas_pixel = *child_pixel;
+                }
+            }
+
+            offset_y += rendered_list_item.height;
+        }
 
         RenderedBlock {
-            height: 100,
+            height: total_height,
+            canvas,
+            breakpoints,
+        }
+    }
+
+    fn render_list_item(
+        &mut self,
+        list_item: &ListItem,
+        settings: &BlockRenderSettings,
+    ) -> RenderedBlock {
+        let mut child_settings: BlockRenderSettings = settings.clone();
+        let indent_left = INDENT_MARGIN_LEFT_EMS * self.rendering_settings.font_size;
+        child_settings.margin_left += indent_left;
+
+        let mut offset_y = 0;
+        let mut breakpoints = vec![];
+        let mut rendered_children: Vec<RenderedBlock> = vec![];
+
+        for child_block in list_item.content.iter() {
+            let rendered_child = self.render_block(child_block, &child_settings);
+
+            for breakpoint in rendered_child.breakpoints.iter() {
+                breakpoints.push(offset_y + breakpoint);
+            }
+
+            offset_y += rendered_child.height;
+
+            rendered_children.push(rendered_child);
+        }
+
+        let total_height = offset_y;
+
+        let mut canvas = RgbaImage::new(CANVAS_WIDTH, total_height);
+
+        for pixel in canvas.pixels_mut() {
+            *pixel = COLOR_BACKGROUND;
+        }
+
+        offset_y = 0;
+        for rendered_child in rendered_children.iter() {
+            for y in 0..rendered_child.height {
+                for x in 0..settings.canvas_width {
+                    let canvas_pixel = canvas.get_pixel_mut(x, y + offset_y);
+                    let child_pixel = rendered_child.canvas.get_pixel(x, y);
+
+                    *canvas_pixel = *child_pixel;
+                }
+            }
+
+            offset_y += rendered_child.height;
+        }
+
+        // TODO: draw bullet point instead of this funny thing
+        for y in 0..BLOCKQUOTE_BORDER_WIDTH {
+            for x in settings.margin_left..settings.margin_left + BLOCKQUOTE_BORDER_WIDTH {
+                *canvas.get_pixel_mut(x, y) = COLOR_BLOCKQUOTE_BORDER;
+            }
+        }
+
+        RenderedBlock {
+            height: total_height,
             canvas,
             breakpoints,
         }
