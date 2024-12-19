@@ -65,12 +65,22 @@ impl BrowserCore {
             return;
         }
 
+        self.do_render(&page.content, url).await;
+    }
+
+    pub async fn render(&mut self, html: &str, page_url: &str) {
+        info!("Rendering direct HTML from page url: {}", page_url);
+
+        self.do_render(html, page_url).await
+    }
+
+    async fn do_render(&mut self, html: &str, page_url: &str) {
         info!("Parsing...");
-        let parse_result = parse_webpage(&page.content);
+        let parse_result = parse_webpage(html);
         if let Err(err) = parse_result {
             error!("Failed to parse webpage: {}", err);
             self.state = BrowserState::PageError {
-                url: url.to_string(),
+                url: page_url.to_string(),
                 error: err.to_string(),
             };
             return;
@@ -79,14 +89,14 @@ impl BrowserCore {
         // info!("Parsed document: {:#?}", document);
 
         info!("Fetching images...");
-        let images = fetch_images(url, &document).await;
+        let images = fetch_images(page_url, &document).await;
 
         info!("Rendering pages...");
-        let mut renderer = Renderer::new(&self.settings.rendering, url, images);
+        let mut renderer = Renderer::new(&self.settings.rendering, page_url, images);
         let page_canvases = renderer.render_document(&document);
 
         self.state = BrowserState::ViewingPage {
-            url: url.to_string(),
+            url: page_url.to_string(),
             page_canvases,
         };
     }

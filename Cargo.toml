@@ -15,6 +15,7 @@ reqwest = { version = "0.12", default-features = false, features = [
     "rustls-tls",
 ] }
 htmd = "0.1.6"
+http-body-util = "0.1.0"
 tree-sitter = "0.19"
 tree-sitter-markdown = "0.7"
 thiserror = "1.0"
