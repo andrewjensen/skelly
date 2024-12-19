@@ -64,8 +64,6 @@ impl RemarkableApp {
 
     pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let (app_tx, mut app_rx) = tokio_channel::<AppEvent>(32);
-        let app_tx_navigate = app_tx.clone();
-        let app_tx_render = app_tx.clone();
         let app_tx_shared = app_tx.clone();
 
         app_tx.send(AppEvent::Initialize).await.unwrap();
@@ -103,17 +101,7 @@ impl RemarkableApp {
             info!("Starting web server...");
             let web_server = Router::new()
                 .route("/", get(serve_web_ui))
-                .route(
-                    "/navigate",
-                    post(|Json(payload): Json<NavigateCommand>| async move {
-                        app_tx_navigate
-                            .send(AppEvent::Navigate(payload.clone()))
-                            .await
-                            .unwrap();
-
-                        StatusCode::OK
-                    }),
-                )
+                .route("/navigate", post(handle_navigate_command))
                 .route("/render", post(handle_render_command))
                 .with_state(shared_server_state);
             let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
@@ -289,13 +277,29 @@ async fn serve_web_ui() -> Html<String> {
     Html(html_string)
 }
 
+async fn handle_navigate_command(
+    State(state): State<Arc<ServerState>>,
+    Json(payload): Json<NavigateCommand>,
+) -> Response {
+    state
+        .app_tx
+        .send(AppEvent::Navigate(payload.clone()))
+        .await
+        .unwrap();
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .body(Body::empty())
+        .unwrap()
+}
+
 async fn handle_render_command(State(state): State<Arc<ServerState>>, req: Request) -> Response {
     let (parts, body) = req.into_parts();
 
     let headers = parts.headers;
 
     let page_url = match headers.get("x-skelly-page-url") {
-        Some(page_url) => page_url.to_str().unwrap(),
+        Some(page_url) => page_url.to_str().unwrap().to_string(),
         None => {
             return Response::builder()
                 .status(StatusCode::BAD_REQUEST)
