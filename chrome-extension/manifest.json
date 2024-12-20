@@ -8,12 +8,6 @@
     "default_icon": "hello_extensions.png"
   },
   "permissions": ["tabs", "activeTab", "scripting"],
-  "___content_scripts": [
-    {
-      "js": ["content.js"],
-      "matches": ["https://*/*", "http://*/*"]
-    }
-  ],
   "externally_connectable": {
     "matches": ["<all_urls>"]
   }
