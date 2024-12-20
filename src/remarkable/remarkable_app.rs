@@ -18,6 +18,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc::channel as tokio_channel;
 use tokio::sync::mpsc::Sender;
 use tokio::task::spawn_blocking;
+use tower_http::cors::CorsLayer;
 
 use crate::browser_core::{BrowserCore, BrowserState};
 use crate::settings::Settings;
@@ -103,6 +104,7 @@ impl RemarkableApp {
                 .route("/", get(serve_web_ui))
                 .route("/navigate", post(handle_navigate_command))
                 .route("/render", post(handle_render_command))
+                .layer(CorsLayer::permissive())
                 .with_state(shared_server_state);
             let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
             axum::serve(listener, web_server).await.unwrap();
@@ -339,7 +341,6 @@ async fn handle_render_command(State(state): State<Arc<ServerState>>, req: Reque
 
     return Response::builder()
         .status(StatusCode::OK)
-        .header("Access-Control-Allow-Origin", "*")
         .body(Body::empty())
         .unwrap();
 }
