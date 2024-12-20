@@ -1,26 +1,17 @@
 {
-  "name": "Hello Extensions",
-  "description": "Base Level Extension",
-  "version": "1.0",
+  "name": "Send to Skelly",
+  "description": "Send the current page's HTML to Skelly for reading",
+  "version": "0.0.0",
   "manifest_version": 3,
   "action": {
     "default_popup": "hello.html",
     "default_icon": "hello_extensions.png"
   },
-  "permissions": [
-    "tabs",
-    "activeTab",
-    "scripting"
-  ],
+  "permissions": ["tabs", "activeTab", "scripting"],
   "___content_scripts": [
     {
-      "js": [
-        "content.js"
-      ],
-      "matches": [
-        "https://*/*",
-        "http://*/*"
-      ]
+      "js": ["content.js"],
+      "matches": ["https://*/*", "http://*/*"]
     }
   ],
   "externally_connectable": {

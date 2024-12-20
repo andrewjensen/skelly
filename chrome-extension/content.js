@@ -6,7 +6,15 @@ async function sendToSkelly() {
   const pageHtml = document.documentElement.outerHTML;
   console.log("page HTML:", pageHtml);
 
-  chrome.runtime.sendMessage({ type: "send-to-skelly", html: pageHtml }, (response) => {
+  const pageUrl = window.location.href;
+
+  const message = {
+    type: "send-to-skelly",
+    pageHtml,
+    pageUrl,
+  };
+
+  chrome.runtime.sendMessage(message, (response) => {
     console.log("Message sent to extension, response:", response);
   });
 }
