@@ -204,7 +204,12 @@ fn parse_heading(node_heading: &Node, source: &[u8]) -> Result<Option<Block>, Pa
     }
     let level = level.unwrap();
 
-    cursor.goto_next_sibling();
+    let moved = cursor.goto_next_sibling();
+    if !moved {
+        // No actual content in this heading, so skip it
+        return Ok(None);
+    }
+
     if cursor.node().kind() != "heading_content" {
         return Err(ParseError::UnexpectedNodeKind(
             cursor.node().kind().to_string(),
