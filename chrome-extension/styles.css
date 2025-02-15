@@ -21,3 +21,26 @@ h1, h2, h3, h4, h5, h6 {
 .skelly-host-container input {
   flex: 1;
 }
+
+#status-banner {
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  color: white;
+  font-weight: bold;
+}
+
+#status-banner.status-initial {
+  background-color: gray;
+}
+
+#status-banner.status-success {
+  background-color: green;
+}
+
+#status-banner.status-error {
+  background-color: red;
+}
+
+#status-banner.status-pending {
+  background-color: #f6ee15;
+}
