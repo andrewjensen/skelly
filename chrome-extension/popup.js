@@ -4,11 +4,11 @@ const STATUSES = {
     message: "Initialized",
   },
   CONNECTED: {
-    cssClass: "status-connected",
+    cssClass: "status-success",
     message: "Connected to Skelly",
   },
   DISCONNECTED: {
-    cssClass: "status-disconnected",
+    cssClass: "status-error",
     message: "Disconnected from Skelly",
   },
   CONNECTING: {
@@ -33,20 +33,19 @@ let skellyHost = null;
 
 let appStatus = STATUSES.INITIAL;
 
-function main() {
-  skellyHost = localStorage.getItem("skellyHost");
-  if (skellyHost) {
-    document.getElementById("skelly-host").value = skellyHost;
-  }
-
-  setStatus(STATUSES.INITIAL);
-
+async function main() {
   document.getElementById("send-to-skelly").addEventListener("click", handleClickSendToSkelly);
 
   document.getElementById("save-skelly-host").addEventListener("click", handleClickSaveSkellyHost);
 
   chrome.runtime.onMessage.addListener(handleMessage);
 
+  skellyHost = localStorage.getItem("skellyHost");
+  if (skellyHost) {
+    document.getElementById("skelly-host").value = skellyHost;
+  }
+
+  checkConnection();
 }
 
 main();
@@ -93,6 +92,8 @@ function handleClickSaveSkellyHost() {
   document.getElementById("skelly-host").value = newSkellyHost;
   localStorage.setItem("skellyHost", newSkellyHost);
   skellyHost = newSkellyHost;
+
+  checkConnection();
 }
 
 function handleClickSendToSkelly() {
@@ -134,5 +135,21 @@ async function requestRender(pageHtml, pageUrl) {
     throw new Error(
       `Failed to send to Skelly: ${response.status} ${response.statusText}`,
     );
+  }
+}
+
+async function checkConnection() {
+  setStatus(STATUSES.CONNECTING);
+
+  try {
+    const response = await fetch(`${skellyHost}/`);
+    if (response.ok) {
+      setStatus(STATUSES.CONNECTED);
+      return;
+    } else {
+      setStatus(STATUSES.DISCONNECTED);
+    }
+  } catch (e) {
+    setStatus(STATUSES.DISCONNECTED);
   }
 }
