@@ -6,9 +6,18 @@
     <div id="container">
       <h1>Send to Skelly</h1>
 
-      <p>Hello world</p>
+      <p>Send the current webpage to Skelly for reading.</p>
 
       <p><button id="send-to-skelly">Send to Skelly</button></p>
+
+      <hr />
+
+      <p>Configure the host name of your Skelly server:</p>
+
+      <div class="skelly-host-container">
+        <input type="text" id="skelly-host" placeholder="http://192.168.100.200:3000" />
+        <button id="save-skelly-host">Save</button>
+      </div>
     </div>
 
     <script src="popup.js"></script>
