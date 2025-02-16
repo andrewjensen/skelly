@@ -2021,6 +2021,7 @@ dependencies = [
  "image",
  "libremarkable",
  "log",
+ "markup5ever_rcdom",
  "once_cell",
  "pretty_assertions",
  "reqwest",

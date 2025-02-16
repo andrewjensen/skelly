@@ -1,4 +1,5 @@
 use htmd::{Element, HtmlToMarkdown};
+use markup5ever_rcdom::NodeData;
 use log::info;
 use thiserror::Error;
 use tree_sitter::{Node, Parser};
@@ -96,6 +97,9 @@ pub fn parse_webpage(page_html: &str) -> Result<Document, ParseError> {
         .add_handler(vec!["script", "style", "title"], |_: Element| None)
         .add_handler(vec!["figcaption"], figcaption_handler)
         .add_handler(vec!["dt", "dd"], definition_list_handler)
+        .add_handler(vec!["tbody"], table_body_handler)
+        .add_handler(vec!["tr"], table_row_handler)
+        .add_handler(vec!["td", "th"], table_cell_handler)
         .build();
     let page_markdown = converter.convert(page_html);
     if page_markdown.is_err() {
@@ -140,6 +144,52 @@ fn figcaption_handler(element: Element) -> Option<String> {
 
 fn definition_list_handler(element: Element) -> Option<String> {
     Some(format!("{}\n\n", element.content))
+}
+
+fn table_body_handler(element: Element) -> Option<String> {
+    let num_columns = count_table_columns(&element);
+
+    if num_columns == 0 {
+        Some(element.content.to_string())
+    } else {
+        let divider = "| - ".repeat(num_columns) + "|";
+
+        Some(format!("{}\n{}", divider, element.content))
+    }
+}
+
+fn count_table_columns(tbody_element: &Element) -> usize {
+    let tbody_children = tbody_element.node.children.borrow();
+
+    for child in tbody_children.iter() {
+        if let NodeData::Element{ name: node_name, .. } = &child.data {
+            if node_name.local.to_string() == "tr" {
+                let first_row = child;
+                let tr_children = first_row.children.borrow();
+
+                let mut num_columns = 0;
+                for tr_child in tr_children.iter() {
+                    if let NodeData::Element{ name: node_name, .. } = &tr_child.data {
+                        if node_name.local.to_string() == "td" {
+                            num_columns += 1;
+                        }
+                    }
+                }
+
+                return num_columns;
+            }
+        }
+    }
+
+    0
+}
+
+fn table_row_handler(element: Element) -> Option<String> {
+    Some(format!("{}|\n", element.content))
+}
+
+fn table_cell_handler(element: Element) -> Option<String> {
+    Some(format!("| {} ", element.content))
 }
 
 fn parse_child_blocks(parent_block: &Node, source: &[u8]) -> Result<Vec<Block>, ParseError> {
