@@ -40,6 +40,8 @@ const INDENT_MARGIN_LEFT_EMS: u32 = 2;
 
 const BLOCKQUOTE_BORDER_WIDTH: u32 = 5;
 
+const TABLE_CELL_PADDING_X: u32 = 20;
+
 pub struct RenderedBlock {
     pub height: u32,
     pub canvas: RgbaImage,
@@ -599,11 +601,25 @@ impl<'a> Renderer<'a> {
         cell_index: usize,
         settings: &BlockRenderSettings,
     ) -> RenderedBlock {
-        let height = 100; // Fixed height as requested
+        let child_block = Block::Paragraph { content: cell.content.clone() };
+        let mut child_render_settings = settings.clone();
+        child_render_settings.margin_left += TABLE_CELL_PADDING_X;
+        child_render_settings.margin_right += TABLE_CELL_PADDING_X;
+        let rendered_child = self.render_block(&child_block, &child_render_settings);
+
+        let height = rendered_child.height;
         let mut canvas = RgbaImage::new(CANVAS_WIDTH, height);
 
         for pixel in canvas.pixels_mut() {
-            *pixel = COLOR_DEBUG_LAYOUT;
+            *pixel = COLOR_BACKGROUND;
+        }
+
+        for y in 0..height {
+            for x in 0..settings.canvas_width {
+                let canvas_pixel = canvas.get_pixel_mut(x, y);
+                let child_pixel = rendered_child.canvas.get_pixel(x, y);
+                *canvas_pixel = *child_pixel;
+            }
         }
 
         // Draw horizontal line at top of cell

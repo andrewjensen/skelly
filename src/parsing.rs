@@ -60,7 +60,7 @@ pub struct TableCell {
     pub content: Vec<Span>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Span {
     Text { content: String, style: SpanStyle },
     Link(Link),
@@ -75,7 +75,7 @@ pub enum SpanStyle {
     Code,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Link {
     pub destination: String,
     pub text: String,
