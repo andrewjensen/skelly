@@ -464,14 +464,19 @@ fn parse_table_row(node_row: &Node, source: &[u8]) -> Result<Option<TableRow>, P
     let mut cells: Vec<TableCell> = vec![];
 
     for node_cell in node_row.named_children(&mut cursor) {
-        let cell = parse_table_cell(&node_cell, source)?;
+        let parent_style = match node_row.kind() {
+            "table_header_row" => &SpanStyle::Bold,
+            "table_data_row" => &SpanStyle::Normal,
+            _ => unreachable!(),
+        };
+        let cell = parse_table_cell(&node_cell, source, parent_style)?;
         cells.push(cell);
     }
 
     Ok(Some(TableRow { cells }))
 }
 
-fn parse_table_cell(node_cell: &Node, source: &[u8]) -> Result<TableCell, ParseError> {
+fn parse_table_cell(node_cell: &Node, source: &[u8], parent_style: &SpanStyle) -> Result<TableCell, ParseError> {
     if node_cell.kind() != "table_cell" {
         return Err(ParseError::WrongNodeKind(
             "table_cell".to_string(),
@@ -479,7 +484,9 @@ fn parse_table_cell(node_cell: &Node, source: &[u8]) -> Result<TableCell, ParseE
         ));
     }
 
-    let content = flatten_child_spans(node_cell, &SpanStyle::Normal, source)?;
+    // TODO: trim whitespace at beginning and end of cell content
+
+    let content = flatten_child_spans(node_cell, parent_style, source)?;
     Ok(TableCell { content })
 }
 
