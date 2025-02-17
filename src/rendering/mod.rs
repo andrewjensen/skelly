@@ -25,12 +25,13 @@ use progress::add_progress_overlay;
 
 const COLOR_BACKGROUND: Rgba<u8> = Rgba([0xFF, 0xFF, 0xFF, 0xFF]);
 const COLOR_DEBUG_LAYOUT: Rgba<u8> = Rgba([0x00, 0xFF, 0xFF, 0xFF]);
-
-const COLOR_TEXT: Color = Color::rgba(0x00, 0x00, 0x00, 0xFF);
-const COLOR_LINK: Color = Color::rgba(0x00, 0x00, 0xFF, 0xFF);
 const COLOR_TABLE_ROW_BORDER: Rgba<u8> = Rgba([0x33, 0x33, 0x33, 0xFF]);
 const COLOR_TABLE_CELL_BORDER: Rgba<u8> = Rgba([0x99, 0x99, 0x99, 0xFF]);
 const COLOR_BLOCKQUOTE_BORDER: Rgba<u8> = Rgba([0x00, 0x00, 0x00, 0xFF]);
+
+// Using cosmic_text Colors here
+const COLOR_TEXT: Color = Color::rgba(0x00, 0x00, 0x00, 0xFF);
+const COLOR_LINK: Color = Color::rgba(0x00, 0x00, 0xFF, 0xFF);
 
 const LINK_UNDERLINE_OFFSET_Y: i32 = 2;
 const LINK_UNDERLINE_THICKNESS: i32 = 2;
