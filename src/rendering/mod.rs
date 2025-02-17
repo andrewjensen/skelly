@@ -10,7 +10,7 @@ use std::fmt;
 use crate::browser_core::ImagesByUrl;
 use crate::keyboard::{add_keyboard_overlay, KeyboardState};
 use crate::network::resolve_url;
-use crate::parsing::{Block, Document, ListItem, Span, SpanStyle};
+use crate::parsing::{Block, Document, ListItem, Span, SpanStyle, TableRow, TableCell};
 use crate::settings::RenderingSettings;
 
 use crate::{CANVAS_HEIGHT, CANVAS_MARGIN_BOTTOM, CANVAS_MARGIN_TOP, CANVAS_WIDTH, DEBUG_LAYOUT};
@@ -19,7 +19,7 @@ mod helpers;
 mod images;
 mod progress;
 
-use helpers::{create_blank_canvas, draw_box_border, draw_filled_rectangle, draw_horizontal_line};
+use helpers::{create_blank_canvas, draw_box_border, draw_filled_rectangle, draw_horizontal_line, draw_vertical_line};
 use images::{render_placeholder_image_block, rescale_image};
 use progress::add_progress_overlay;
 
@@ -28,6 +28,8 @@ const COLOR_DEBUG_LAYOUT: Rgba<u8> = Rgba([0x00, 0xFF, 0xFF, 0xFF]);
 
 const COLOR_TEXT: Color = Color::rgba(0x00, 0x00, 0x00, 0xFF);
 const COLOR_LINK: Color = Color::rgba(0x00, 0x00, 0xFF, 0xFF);
+const COLOR_TABLE_ROW_BORDER: Rgba<u8> = Rgba([0x33, 0x33, 0x33, 0xFF]);
+const COLOR_TABLE_CELL_BORDER: Rgba<u8> = Rgba([0x99, 0x99, 0x99, 0xFF]);
 const COLOR_BLOCKQUOTE_BORDER: Rgba<u8> = Rgba([0x00, 0x00, 0x00, 0xFF]);
 
 const LINK_UNDERLINE_OFFSET_Y: i32 = 2;
@@ -220,6 +222,9 @@ impl<'a> Renderer<'a> {
             }
             Block::List { items } => {
                 return self.render_list_block(items, settings);
+            }
+            Block::Table { rows } => {
+                return self.render_table_block(rows, settings);
             }
             _ => {
                 return self.render_text_based_block(block, settings);
@@ -469,6 +474,185 @@ impl<'a> Renderer<'a> {
         }
     }
 
+    fn render_table_block(
+        &mut self,
+        rows: &Vec<TableRow>,
+        settings: &BlockRenderSettings,
+    ) -> RenderedBlock {
+        let row_settings: BlockRenderSettings = settings.clone();
+
+        info!("Rendering table with {} rows", rows.len());
+
+        let mut offset_y = 0;
+        let mut breakpoints = vec![];
+        let mut rendered_rows: Vec<RenderedBlock> = vec![];
+
+        for row in rows {
+            let rendered_row = self.render_table_row(row, &row_settings);
+
+            info!("Rendered row: {:?}", rendered_row);
+
+            for breakpoint in rendered_row.breakpoints.iter() {
+                breakpoints.push(offset_y + breakpoint);
+            }
+
+            offset_y += rendered_row.height;
+            rendered_rows.push(rendered_row);
+        }
+
+        let total_height = offset_y + 1; // Add 1 pixel for the bottom border
+        let mut canvas = RgbaImage::new(CANVAS_WIDTH, total_height);
+
+        for pixel in canvas.pixels_mut() {
+            *pixel = COLOR_BACKGROUND;
+        }
+
+        offset_y = 0;
+        for rendered_row in rendered_rows.iter() {
+            for y in 0..rendered_row.height {
+                for x in 0..settings.canvas_width {
+                    let canvas_pixel = canvas.get_pixel_mut(x, y + offset_y);
+                    let row_pixel = rendered_row.canvas.get_pixel(x, y);
+                    *canvas_pixel = *row_pixel;
+                }
+            }
+            offset_y += rendered_row.height;
+        }
+
+        // Draw bottom border
+        let bottom_border_y = total_height - 1;
+        let bottom_border_start_x = settings.margin_left;
+        let bottom_border_end_x = settings.canvas_width - settings.margin_right;
+        draw_horizontal_line(
+            bottom_border_start_x,
+            bottom_border_end_x,
+            bottom_border_y,
+            COLOR_TABLE_ROW_BORDER,
+            &mut canvas
+        );
+
+        RenderedBlock {
+            height: total_height,
+            canvas,
+            breakpoints,
+        }
+    }
+
+    fn render_table_row(
+        &mut self,
+        row: &TableRow,
+        settings: &BlockRenderSettings,
+    ) -> RenderedBlock {
+        let cell_settings: BlockRenderSettings = settings.clone();
+        let mut rendered_cells: Vec<RenderedBlock> = vec![];
+
+        info!("Rendering table row with {} cells", row.cells.len());
+
+        // First render all cells
+        for (cell_index, cell) in row.cells.iter().enumerate() {
+            let rendered_cell = self.render_table_cell(cell, cell_index, &cell_settings);
+            rendered_cells.push(rendered_cell);
+        }
+
+        // Stack cells vertically
+        let mut offset_y = 0;
+        let mut breakpoints = vec![];
+
+        // Calculate total height needed for all cells
+        let total_height: u32 = rendered_cells.iter()
+            .map(|cell| cell.height)
+            .sum();
+
+        let mut canvas = RgbaImage::new(CANVAS_WIDTH, total_height);
+
+        for pixel in canvas.pixels_mut() {
+            *pixel = COLOR_BACKGROUND;
+        }
+
+        // Copy each cell's content into the row canvas, stacking vertically
+        for rendered_cell in rendered_cells.iter() {
+            for y in 0..rendered_cell.height {
+                for x in 0..settings.canvas_width {
+                    let canvas_pixel = canvas.get_pixel_mut(x, y + offset_y);
+                    let cell_pixel = rendered_cell.canvas.get_pixel(x, y);
+                    *canvas_pixel = *cell_pixel;
+                }
+            }
+
+            // Add breakpoint at the start of each cell
+            breakpoints.push(offset_y);
+
+            offset_y += rendered_cell.height;
+        }
+
+        RenderedBlock {
+            height: total_height,
+            canvas,
+            breakpoints,
+        }
+    }
+
+    fn render_table_cell(
+        &mut self,
+        cell: &TableCell,
+        cell_index: usize,
+        settings: &BlockRenderSettings,
+    ) -> RenderedBlock {
+        let height = 100; // Fixed height as requested
+        let mut canvas = RgbaImage::new(CANVAS_WIDTH, height);
+
+        for pixel in canvas.pixels_mut() {
+            *pixel = COLOR_DEBUG_LAYOUT;
+        }
+
+        // Draw horizontal line at top of cell
+        let line_y = 0;
+        let line_start_x = settings.margin_left;
+        let line_end_x = settings.canvas_width - settings.margin_right;
+        let top_line_color = if cell_index == 0 {
+            COLOR_TABLE_ROW_BORDER
+        } else {
+            COLOR_TABLE_CELL_BORDER
+        };
+        draw_horizontal_line(
+            line_start_x,
+            line_end_x,
+            line_y,
+            top_line_color,
+            &mut canvas
+        );
+
+        // Draw vertical line at left of cell
+        let line_x = settings.margin_left;
+        let line_start_y = 0;
+        let line_end_y = height - 1;
+        draw_vertical_line(
+            line_x,
+            line_start_y,
+            line_end_y,
+            COLOR_TABLE_ROW_BORDER,
+            &mut canvas
+        );
+
+        // Draw vertical line at right of cell
+        let line_x = settings.canvas_width - settings.margin_right;
+        let line_start_y = 0;
+        let line_end_y = height - 1;
+        draw_vertical_line(
+            line_x,
+            line_start_y,
+            line_end_y,
+            COLOR_TABLE_ROW_BORDER,
+            &mut canvas
+        );
+
+        RenderedBlock {
+            height,
+            canvas,
+            breakpoints: vec![0],
+        }
+    }
+
     fn render_text_based_block(
         &mut self,
         block: &Block,
@@ -682,6 +866,9 @@ impl<'a> Renderer<'a> {
                 spans.push(("\n", attrs_code_block));
                 spans.push(("```", attrs_code_block));
                 spans.push(("\n\n", attrs_code_block));
+            }
+            Block::Table { .. } => {
+                unreachable!();
             }
         }
 

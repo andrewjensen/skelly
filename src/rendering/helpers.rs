@@ -39,6 +39,12 @@ pub fn draw_horizontal_line(x1: u32, x2: u32, y: u32, color: Rgba<u8>, canvas: &
     }
 }
 
+pub fn draw_vertical_line(x: u32, y1: u32, y2: u32, color: Rgba<u8>, canvas: &mut RgbaImage) {
+    for y in y1..y2 + 1 {
+        canvas.put_pixel(x, y, color);
+    }
+}
+
 pub fn create_blank_canvas(width: u32, height: u32, background_color: Rgba<u8>) -> RgbaImage {
     let mut canvas = RgbaImage::new(width, height);
     for pixel in canvas.pixels_mut() {
