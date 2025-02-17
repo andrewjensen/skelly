@@ -33,6 +33,9 @@ pub enum Block {
         language: Option<String>,
         content: String,
     },
+    Table {
+        rows: Vec<TableRow>,
+    },
 }
 
 #[derive(Debug, PartialEq)]
@@ -45,6 +48,16 @@ pub struct ListItem {
 pub enum ListMarker {
     Bullet,
     Ordered { content: String },
+}
+
+#[derive(Debug, PartialEq)]
+pub struct TableRow {
+    pub cells: Vec<TableCell>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct TableCell {
+    pub content: Vec<Span>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -133,9 +146,13 @@ pub fn parse_webpage(page_html: &str) -> Result<Document, ParseError> {
 
     let child_blocks = parse_child_blocks(&node_doc, source)?;
 
-    Ok(Document {
+    let document = Document {
         blocks: child_blocks,
-    })
+    };
+
+    // info!("Parsed document: {:#?}", document);
+
+    Ok(document)
 }
 
 fn figcaption_handler(element: Element) -> Option<String> {
@@ -226,6 +243,7 @@ fn parse_block(node_block: &Node, source: &[u8]) -> Result<Option<Block>, ParseE
             }],
         })),
         "list_marker" => Ok(None),
+        "table" => parse_table(node_block, source),
         _ => Err(ParseError::UnexpectedNodeKind(
             node_block.kind().to_string(),
         )),
@@ -420,6 +438,49 @@ fn parse_list_item(node_list_item: &Node, source: &[u8]) -> Result<ListItem, Par
         marker: ListMarker::Bullet,
         content: child_blocks,
     })
+}
+
+fn parse_table(node_table: &Node, source: &[u8]) -> Result<Option<Block>, ParseError> {
+    let mut rows: Vec<TableRow> = vec![];
+
+    let mut cursor = node_table.walk();
+    for node_row in node_table.named_children(&mut cursor) {
+        let row = parse_table_row(&node_row, source)?;
+        if let Some(row) = row {
+            rows.push(row);
+        }
+    }
+
+    Ok(Some(Block::Table { rows }))
+}
+
+fn parse_table_row(node_row: &Node, source: &[u8]) -> Result<Option<TableRow>, ParseError> {
+    match node_row.kind() {
+        "table_header_row" | "table_data_row" => (),
+        _ => return Ok(None),
+    }
+
+    let mut cursor = node_row.walk();
+    let mut cells: Vec<TableCell> = vec![];
+
+    for node_cell in node_row.named_children(&mut cursor) {
+        let cell = parse_table_cell(&node_cell, source)?;
+        cells.push(cell);
+    }
+
+    Ok(Some(TableRow { cells }))
+}
+
+fn parse_table_cell(node_cell: &Node, source: &[u8]) -> Result<TableCell, ParseError> {
+    if node_cell.kind() != "table_cell" {
+        return Err(ParseError::WrongNodeKind(
+            "table_cell".to_string(),
+            node_cell.kind().to_string(),
+        ));
+    }
+
+    let content = flatten_child_spans(node_cell, &SpanStyle::Normal, source)?;
+    Ok(TableCell { content })
 }
 
 fn flatten_child_spans(
