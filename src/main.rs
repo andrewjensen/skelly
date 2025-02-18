@@ -6,6 +6,8 @@ use std::process;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 
+mod application;
+mod backend;
 mod browser_core;
 mod debugging;
 mod keyboard;
@@ -17,6 +19,11 @@ mod settings;
 #[cfg(feature = "remarkable")]
 mod remarkable;
 
+#[cfg(feature = "desktop")]
+mod desktop_backend;
+
+use crate::application::Application;
+use crate::backend::Backend;
 use crate::browser_core::{BrowserCore, BrowserState};
 use crate::settings::load_settings_with_fallback;
 
@@ -87,6 +94,28 @@ async fn save_page_canvas(
 
     let mut file = File::create(file_path).await?;
     file.write_all(&png_buffer.into_inner()).await?;
+
+    Ok(())
+}
+
+#[cfg(feature = "desktop")]
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::init();
+
+    info!("Running in desktop mode");
+
+    let settings_file_path = "/home/root/.config/skelly/settings.json";
+    let settings = load_settings_with_fallback(settings_file_path).await;
+    info!("Settings: {:#?}", settings);
+
+    let mut app = Application::new(settings.clone());
+
+    let mut desktop_backend = desktop_backend::create_desktop_backend(settings.clone());
+
+    app.connect_to_backend(&mut desktop_backend);
+
+    app.run().await?;
 
     Ok(())
 }
