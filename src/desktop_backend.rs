@@ -17,33 +17,27 @@ use crate::application::{UserInputEvent, OutputEvent};
 use crate::backend::Backend;
 use crate::settings::Settings;
 
-pub fn create_desktop_backend(settings: Settings) -> DesktopBackend {
-    info!("Time to create a window");
-
-    let event_loop = EventLoop::new().unwrap();
-    event_loop.set_control_flow(ControlFlow::Wait);
-
-    let (input_event_sender, input_event_receiver) = channel::<UserInputEvent>(32);
-
-    let mut desktop_app = DesktopBackend {
-        window: None,
-        mouse_position: (0.0, 0.0),
-        input_event_sender: input_event_sender,
-        input_event_receiver_temp: Some(input_event_receiver),
-        // output_event_receiver: None,
-    };
-
-    let _result = event_loop.run_app(&mut desktop_app);
-
-    desktop_app
-}
-
 pub struct DesktopBackend {
     window: Option<Window>,
     mouse_position: (f64, f64),
     input_event_sender: Sender<UserInputEvent>,
     input_event_receiver_temp: Option<Receiver<UserInputEvent>>,
-    // output_event_receiver: Option<Receiver<OutputEvent>>,
+    event_loop: Option<EventLoop<()>>,
+}
+
+impl DesktopBackend {
+    pub fn new() -> Self {
+        let event_loop = EventLoop::new().unwrap();
+        let (input_event_sender, input_event_receiver) = channel::<UserInputEvent>(32);
+
+        Self {
+            window: None,
+            mouse_position: (0.0, 0.0),
+            input_event_sender,
+            input_event_receiver_temp: Some(input_event_receiver),
+            event_loop: Some(event_loop),
+        }
+    }
 }
 
 impl Backend for DesktopBackend {
@@ -54,12 +48,13 @@ impl Backend for DesktopBackend {
         receiver
     }
 
-    // fn set_output_event_receiver(&mut self, receiver: Receiver<OutputEvent>) {
-    //     self.output_event_receiver = Some(receiver);
-    // }
-
-    async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn run(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         info!("Desktop backend running");
+
+        let event_loop = self.event_loop.take().unwrap();
+        event_loop.set_control_flow(ControlFlow::Wait);
+
+        let _result = event_loop.run_app(self);
 
         Ok(())
     }
@@ -153,14 +148,14 @@ impl ApplicationHandler for DesktopBackend {
             }
             WindowEvent::CursorMoved {
                 device_id: _,
-                position: position,
+                position,
             } => {
                 self.mouse_position = position.into();
             }
             WindowEvent::MouseInput {
                 device_id: _,
-                state: state,
-                button: button,
+                state,
+                button,
             } => {
                 if state == ElementState::Pressed && button == MouseButton::Left {
                     let cursor_x: u32 = self.mouse_position.0 as u32;

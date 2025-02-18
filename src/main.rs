@@ -100,7 +100,7 @@ async fn save_page_canvas(
 
 #[cfg(feature = "desktop")]
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     env_logger::init();
 
     info!("Running in desktop mode");
@@ -110,19 +110,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Settings: {:#?}", settings);
 
     let mut app = Application::new(settings.clone());
+    let mut backend = desktop_backend::DesktopBackend::new();
+    app.connect_to_backend(&mut backend);
 
-    let mut desktop_backend = desktop_backend::create_desktop_backend(settings.clone());
+    let app_handle = tokio::spawn(async move {
+        app.run().await.map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
+            Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+        })
+    });
 
-    app.connect_to_backend(&mut desktop_backend);
+    backend.run().await?;
 
-    app.run().await?;
+    app_handle.await??;
 
     Ok(())
 }
 
 #[cfg(feature = "remarkable")]
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     env_logger::init();
 
     let settings_file_path = "/home/root/.config/skelly/settings.json";

@@ -6,5 +6,5 @@ pub trait Backend {
     fn get_input_event_receiver(&mut self) -> Receiver<UserInputEvent>;
     // fn set_output_event_receiver(&mut self, channel: Receiver<OutputEvent>);
 
-    async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>>;
+    async fn run(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 }
