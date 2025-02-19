@@ -1,4 +1,16 @@
+use axum::body::Body;
+use axum::extract::{Request, State};
+use axum::http::StatusCode;
+use axum::response::{Html, IntoResponse, Response};
+use axum::routing::{get, post};
+use axum::{Json, Router};
+use http_body_util::BodyExt;
+use log::info;
+use serde::Deserialize;
+use std::sync::Arc;
 use tower_http::cors::CorsLayer;
+use tokio::sync::mpsc::Sender;
+use tokio::sync::mpsc::channel;
 
 struct ServerState {
     app_tx: Sender<AppEvent>,
@@ -16,7 +28,20 @@ struct RenderCommand {
     pub page_url: String,
 }
 
+// FIXME: move this to somewhere central
+#[derive(Debug)]
+enum AppEvent {
+    Initialize,
+    Navigate(NavigateCommand),
+    Render(RenderCommand),
+    Tap { x: u32, y: u32 },
+}
+
+
 pub async fn run_web_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // TODO: move
+    let (app_tx, _app_rx) = channel::<AppEvent>(32);
+    let app_tx_shared = app_tx.clone();
 
     let shared_server_state = Arc::new(ServerState {
         app_tx: app_tx_shared,
@@ -33,10 +58,11 @@ pub async fn run_web_server() -> Result<(), Box<dyn std::error::Error + Send + S
         axum::serve(listener, web_server).await.unwrap();
     });
 
+    Ok(())
 }
 
 async fn serve_web_ui() -> Html<String> {
-    let html = include_bytes!("../../assets/web_ui.html");
+    let html = include_bytes!("../assets/web_ui.html");
     let html_string: String = String::from_utf8_lossy(html).to_string();
 
     Html(html_string)

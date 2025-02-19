@@ -3,6 +3,7 @@ use log::{error, info};
 use std::env;
 use std::io::Cursor;
 use std::process;
+use tokio::runtime::Builder;
 
 mod application;
 mod backend;
@@ -13,6 +14,7 @@ mod network;
 mod parsing;
 mod rendering;
 mod settings;
+mod web_server;
 
 #[cfg(feature = "remarkable")]
 mod remarkable_backend;
@@ -24,6 +26,7 @@ use crate::application::Application;
 use crate::backend::Backend;
 use crate::browser_core::{BrowserCore, BrowserState};
 use crate::settings::load_settings_with_fallback;
+use crate::web_server::run_web_server;
 
 pub const CANVAS_WIDTH: u32 = 1404;
 pub const CANVAS_HEIGHT: u32 = 1872;
@@ -110,9 +113,20 @@ fn main() {
         })
     });
 
+    // Start a tokio runtime just for the web server
+    let tokio_runtime = Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .build()
+        .unwrap();
+    let web_server_handle = tokio_runtime.spawn(async move {
+        run_web_server().await.unwrap();
+    });
+
     backend.run().unwrap();
 
-    app_handle.join().unwrap();
+    app_handle.join().unwrap().unwrap();
+    tokio_runtime.block_on(web_server_handle).unwrap();
 }
 
 #[cfg(feature = "remarkable")]

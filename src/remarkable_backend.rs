@@ -1,20 +1,11 @@
-use axum::body::Body;
-use axum::extract::{Request, State};
-use axum::http::StatusCode;
-use axum::response::{Html, IntoResponse, Response};
-use axum::routing::{get, post};
-use axum::{Json, Router};
 use cgmath::Point2;
-use http_body_util::BodyExt;
 use image::{load_from_memory, RgbaImage};
 use libremarkable::framebuffer::common::*;
 use libremarkable::framebuffer::core::Framebuffer;
 use libremarkable::framebuffer::{FramebufferIO, FramebufferRefresh};
 use libremarkable::input::{ev::EvDevContext, InputDevice, InputEvent, MultitouchEvent};
 use log::{info, warn};
-use serde::Deserialize;
 use std::sync::mpsc::{Receiver, channel};
-use std::sync::Arc;
 
 use crate::application::{UserInputEvent, OutputEvent};
 use crate::backend::Backend;
