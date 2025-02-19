@@ -61,9 +61,18 @@ fn main() {
     }
 
     info!("Saving pages to PNG files...");
+    let mut handles = vec![];
     for (page_idx, page_canvas) in browser.get_pages().iter().enumerate() {
+        let page_canvas = page_canvas.clone();
         let file_path = format!("./output/page-{}.png", page_idx);
-        save_page_canvas(page_canvas.clone(), &file_path).unwrap();
+        let handle = std::thread::spawn(move || {
+            save_page_canvas(page_canvas, &file_path).unwrap();
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.join().unwrap();
     }
 
     info!("Done");
