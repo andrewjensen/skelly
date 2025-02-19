@@ -3,8 +3,6 @@ use log::{error, info};
 use std::env;
 use std::io::Cursor;
 use std::process;
-use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
 
 mod application;
 mod backend;
@@ -34,8 +32,7 @@ pub const CANVAS_MARGIN_BOTTOM: u32 = 150;
 pub const DEBUG_LAYOUT: bool = false;
 
 #[cfg(feature = "static")]
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+fn main() {
     env_logger::init();
 
     // Get the first command line argument and log it out
@@ -49,11 +46,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     info!("The URL argument is: {}", url);
 
     let settings_file_path = "./settings.json";
-    let settings = load_settings_with_fallback(settings_file_path).await;
+    let settings = load_settings_with_fallback(settings_file_path);
     info!("Settings: {:#?}", settings);
 
     let mut browser = BrowserCore::new(settings.clone());
-    browser.navigate_to(&url).await;
+    browser.navigate_to(&url);
 
     if let BrowserState::PageError { url: _, error } = browser.state {
         error!(
@@ -64,68 +61,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     info!("Saving pages to PNG files...");
-    let handles: Vec<_> = browser
-        .get_pages()
-        .iter()
-        .enumerate()
-        .map(|(page_idx, page_canvas)| {
-            let file_path = format!("./output/page-{}.png", page_idx);
-            let page_canvas = page_canvas.clone();
-
-            tokio::spawn(async move { save_page_canvas(page_canvas, &file_path).await })
-        })
-        .collect();
-
-    for handle in handles {
-        handle.await??;
+    for (page_idx, page_canvas) in browser.get_pages().iter().enumerate() {
+        let file_path = format!("./output/page-{}.png", page_idx);
+        save_page_canvas(page_canvas.clone(), &file_path).unwrap();
     }
 
     info!("Done");
-
-    Ok(())
 }
 
-async fn save_page_canvas(
+fn save_page_canvas(
     page_canvas: RgbaImage,
     file_path: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut png_buffer = Cursor::new(Vec::new());
     page_canvas.write_to(&mut png_buffer, ImageFormat::Png)?;
 
-    let mut file = File::create(file_path).await?;
-    file.write_all(&png_buffer.into_inner()).await?;
+    std::fs::write(file_path, png_buffer.into_inner())?;
 
     Ok(())
 }
 
 #[cfg(feature = "desktop")]
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+fn main() {
     env_logger::init();
 
     info!("Running in desktop mode");
 
     let settings_file_path = "/home/root/.config/skelly/settings.json";
-    let settings = load_settings_with_fallback(settings_file_path).await;
+    let settings = load_settings_with_fallback(settings_file_path);
     info!("Settings: {:#?}", settings);
 
     let mut app = Application::new(settings.clone());
     let mut backend = desktop_backend::DesktopBackend::new();
     app.connect_to_backend(&mut backend);
 
-    let app_handle = tokio::spawn(async move {
-        app.run().await.map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
+    let app_handle = std::thread::spawn(move || {
+        app.run().map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
             Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
         })
     });
 
-    backend.run().await?;
+    backend.run().unwrap();
 
-    app_handle.await??;
-
-    Ok(())
+    app_handle.join().unwrap();
 }
 
+/*
 #[cfg(feature = "remarkable")]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -140,3 +121,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     Ok(())
 }
+
+*/

@@ -10,7 +10,7 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 use winit::window::{Window, WindowId};
-use tokio::sync::mpsc::{channel, Sender, Receiver};
+use std::sync::mpsc::{channel, Sender, Receiver};
 
 use crate::{CANVAS_HEIGHT, CANVAS_WIDTH};
 use crate::application::{UserInputEvent, OutputEvent};
@@ -28,7 +28,7 @@ pub struct DesktopBackend {
 impl DesktopBackend {
     pub fn new() -> Self {
         let event_loop = EventLoop::new().unwrap();
-        let (input_event_sender, input_event_receiver) = channel::<UserInputEvent>(32);
+        let (input_event_sender, input_event_receiver) = channel::<UserInputEvent>();
 
         Self {
             window: None,
@@ -48,7 +48,7 @@ impl Backend for DesktopBackend {
         receiver
     }
 
-    async fn run(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         info!("Desktop backend running");
 
         let event_loop = self.event_loop.take().unwrap();
@@ -142,6 +142,8 @@ impl ApplicationHandler for DesktopBackend {
                     Key::Named(NamedKey::Escape) => {
                         info!("Escape key pressed");
                         event_loop.exit();
+
+                        self.input_event_sender.send(UserInputEvent::RequestExit).unwrap();
                     }
                     _ => {}
                 }

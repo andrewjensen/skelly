@@ -35,10 +35,10 @@ pub enum FetchError {
     UnknownError(String),
 }
 
-pub async fn fetch_webpage(url: &str) -> Result<Webpage, FetchError> {
-    let client = reqwest::Client::new();
+pub fn fetch_webpage(url: &str) -> Result<Webpage, FetchError> {
+    let client = reqwest::blocking::Client::new();
     let request = client.get(url).header("Accept", "text/html");
-    let send_result = request.send().await;
+    let send_result = request.send();
 
     if let Err(err) = send_result {
         return Err(FetchError::FailedToSendRequest(err.to_string()));
@@ -63,7 +63,7 @@ pub async fn fetch_webpage(url: &str) -> Result<Webpage, FetchError> {
         }
     };
 
-    let body = response.text().await.unwrap();
+    let body = response.text().unwrap();
 
     let webpage = Webpage {
         content: body.to_string(),
@@ -73,12 +73,12 @@ pub async fn fetch_webpage(url: &str) -> Result<Webpage, FetchError> {
     return Ok(webpage);
 }
 
-pub async fn fetch_image(image_url: &str) -> Result<ImageResponse, FetchError> {
+pub fn fetch_image(image_url: &str) -> Result<ImageResponse, FetchError> {
     info!("Fetching image: {}", image_url);
 
-    let client = reqwest::Client::new();
+    let client = reqwest::blocking::Client::new();
     let request = client.get(image_url);
-    let send_result = request.send().await;
+    let send_result = request.send();
 
     if let Err(err) = send_result {
         return Err(FetchError::FailedToSendRequest(err.to_string()));
@@ -101,7 +101,7 @@ pub async fn fetch_image(image_url: &str) -> Result<ImageResponse, FetchError> {
         return Err(FetchError::IncorrectContentType(content_type));
     }
 
-    let body = response.bytes().await;
+    let body = response.bytes();
     if let Err(err) = body {
         return Err(FetchError::UnknownError(err.to_string()));
     }

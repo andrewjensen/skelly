@@ -1,8 +1,7 @@
 #![allow(dead_code)]
 
 use log::info;
-use tokio::sync::mpsc::{Sender, Receiver};
-use tokio::sync::mpsc::channel;
+use std::sync::mpsc::{Receiver, channel};
 
 use crate::browser_core::BrowserCore;
 use crate::settings::Settings;
@@ -11,6 +10,7 @@ use crate::backend::Backend;
 #[derive(Debug)]
 pub enum UserInputEvent {
     Tap { x: u32, y: u32 },
+    RequestExit,
 }
 
 pub enum OutputEvent {
@@ -41,13 +41,23 @@ impl Application {
         self.input_event_receiver = Some(backend.get_input_event_receiver());
     }
 
-    pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         info!("Application running");
 
         let receiver = self.input_event_receiver.as_mut().unwrap();
 
-        while let Some(input_event) = receiver.recv().await {
+        while let Ok(input_event) = receiver.recv() {
             info!("Input event: {:?}", input_event);
+
+            match input_event {
+                UserInputEvent::Tap { x, y } => {
+                    info!("Tap event: {:?}", (x, y));
+                }
+                UserInputEvent::RequestExit => {
+                    info!("Requesting exit");
+                    break;
+                }
+            }
         }
 
         Ok(())
