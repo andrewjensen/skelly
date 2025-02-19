@@ -15,7 +15,7 @@ mod rendering;
 mod settings;
 
 #[cfg(feature = "remarkable")]
-mod remarkable;
+mod remarkable_backend;
 
 #[cfg(feature = "desktop")]
 mod desktop_backend;
@@ -115,20 +115,26 @@ fn main() {
     app_handle.join().unwrap();
 }
 
-/*
 #[cfg(feature = "remarkable")]
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+fn main() {
     env_logger::init();
 
     let settings_file_path = "/home/root/.config/skelly/settings.json";
-    let settings = load_settings_with_fallback(settings_file_path).await;
+    let settings = load_settings_with_fallback(settings_file_path);
     info!("Settings: {:#?}", settings);
 
-    let mut app = remarkable::RemarkableApp::new(settings);
-    app.run().await?;
+    let mut app = Application::new(settings.clone());
+    let mut backend = remarkable_backend::RemarkableBackend::new(settings.clone());
+    // TODO: add back
+    // app.connect_to_backend(&mut backend);
 
-    Ok(())
+    let app_handle = std::thread::spawn(move || {
+        app.run().map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
+            Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+        })
+    });
+
+    backend.run().unwrap();
+
+    app_handle.join().unwrap();
 }
-
-*/
