@@ -21,33 +21,23 @@ pub struct DesktopBackend {
     window: Option<Window>,
     mouse_position: (f64, f64),
     input_event_sender: Sender<UserInputEvent>,
-    input_event_receiver_temp: Option<Receiver<UserInputEvent>>,
     event_loop: Option<EventLoop<()>>,
 }
 
 impl DesktopBackend {
-    pub fn new() -> Self {
+    pub fn new(input_event_sender: Sender<UserInputEvent>) -> Self {
         let event_loop = EventLoop::new().unwrap();
-        let (input_event_sender, input_event_receiver) = channel::<UserInputEvent>();
 
         Self {
             window: None,
             mouse_position: (0.0, 0.0),
             input_event_sender,
-            input_event_receiver_temp: Some(input_event_receiver),
             event_loop: Some(event_loop),
         }
     }
 }
 
 impl Backend for DesktopBackend {
-    fn get_input_event_receiver(&mut self) -> Receiver<UserInputEvent> {
-        let receiver = self.input_event_receiver_temp.take().unwrap();
-        self.input_event_receiver_temp = None;
-
-        receiver
-    }
-
     fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         info!("Desktop backend running");
 
@@ -166,6 +156,13 @@ impl ApplicationHandler for DesktopBackend {
                         "Left mouse button pressed at ({}, {})",
                         cursor_x, cursor_y
                     );
+
+                    self.input_event_sender
+                        .send(UserInputEvent::Tap {
+                            x: cursor_x,
+                            y: cursor_y,
+                        })
+                        .unwrap();
                 }
             }
             _ => (),

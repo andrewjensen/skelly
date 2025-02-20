@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use axum::body::Body;
 use axum::extract::{Request, State};
 use axum::http::StatusCode;
@@ -6,47 +8,39 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use http_body_util::BodyExt;
 use log::info;
-use serde::Deserialize;
+
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
-use tokio::sync::mpsc::Sender;
-use tokio::sync::mpsc::channel;
+use tokio::runtime::Builder;
+use tokio::sync::mpsc::Sender as TokioSender;
+use tokio::sync::mpsc::channel as tokio_channel;
+use std::sync::mpsc::Sender as StdSender;
+
+use crate::application::{UserInputEvent, NavigateCommand, RenderCommand};
 
 struct ServerState {
-    app_tx: Sender<AppEvent>,
+    input_internal_tx: TokioSender<UserInputEvent>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
-struct NavigateCommand {
-    pub url: String,
-}
+pub fn run_web_server(user_input_tx: StdSender<UserInputEvent>) {
+    // TRICKY: The rest of the app is sync, but we need async for the web server.
+    // We use an internal _tokio_ channel, then relay it to the main thread via a _std_ channel.
 
-#[derive(Debug)]
-struct RenderCommand {
-    pub html: String,
-    // Needed for resolving relative image URLs
-    pub page_url: String,
-}
+    let (input_internal_tx, mut input_internal_rx) = tokio_channel::<UserInputEvent>(32);
 
-// FIXME: move this to somewhere central
-#[derive(Debug)]
-enum AppEvent {
-    Initialize,
-    Navigate(NavigateCommand),
-    Render(RenderCommand),
-    Tap { x: u32, y: u32 },
-}
-
-
-pub async fn run_web_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // TODO: move
-    let (app_tx, _app_rx) = channel::<AppEvent>(32);
-    let app_tx_shared = app_tx.clone();
-
+    // let input_tx_shared = input_internal_tx.clone();
     let shared_server_state = Arc::new(ServerState {
-        app_tx: app_tx_shared,
+        input_internal_tx,
     });
-    let web_server_join = tokio::spawn(async move {
+
+    // Start a tokio runtime just for the web server
+    let tokio_runtime = Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .build()
+        .unwrap();
+
+    let web_server_handle = tokio_runtime.spawn(async move {
         info!("Starting web server...");
         let web_server = Router::new()
             .route("/", get(serve_web_ui))
@@ -58,7 +52,15 @@ pub async fn run_web_server() -> Result<(), Box<dyn std::error::Error + Send + S
         axum::serve(listener, web_server).await.unwrap();
     });
 
-    Ok(())
+    info!("Web server started");
+
+    std::thread::spawn(move || {
+        while let Some(input_event) = input_internal_rx.blocking_recv() {
+            user_input_tx.send(input_event).unwrap();
+        }
+    });
+
+    tokio_runtime.block_on(web_server_handle).unwrap();
 }
 
 async fn serve_web_ui() -> Html<String> {
@@ -73,8 +75,8 @@ async fn handle_navigate_command(
     Json(payload): Json<NavigateCommand>,
 ) -> Response {
     state
-        .app_tx
-        .send(AppEvent::Navigate(payload.clone()))
+        .input_internal_tx
+        .send(UserInputEvent::Navigate(payload.clone()))
         .await
         .unwrap();
 
@@ -123,8 +125,8 @@ async fn handle_render_command(State(state): State<Arc<ServerState>>, req: Reque
         page_url,
     };
     state
-        .app_tx
-        .send(AppEvent::Render(render_command))
+        .input_internal_tx
+        .send(UserInputEvent::Render(render_command))
         .await
         .unwrap();
 

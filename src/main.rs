@@ -3,7 +3,7 @@ use log::{error, info};
 use std::env;
 use std::io::Cursor;
 use std::process;
-use tokio::runtime::Builder;
+use std::sync::mpsc::channel;
 
 mod application;
 mod backend;
@@ -22,7 +22,7 @@ mod remarkable_backend;
 #[cfg(feature = "desktop")]
 mod desktop_backend;
 
-use crate::application::Application;
+use crate::application::{Application, UserInputEvent};
 use crate::backend::Backend;
 use crate::browser_core::{BrowserCore, BrowserState};
 use crate::settings::load_settings_with_fallback;
@@ -103,30 +103,29 @@ fn main() {
     let settings = load_settings_with_fallback(settings_file_path);
     info!("Settings: {:#?}", settings);
 
-    let mut app = Application::new(settings.clone());
-    let mut backend = desktop_backend::DesktopBackend::new();
-    app.connect_to_backend(&mut backend);
+    let (user_input_tx, user_input_rx) = channel::<UserInputEvent>();
 
+    // Start the core application...
+    let mut app = Application::new(settings.clone(), user_input_rx);
     let app_handle = std::thread::spawn(move || {
         app.run().map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
             Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
         })
     });
 
-    // Start a tokio runtime just for the web server
-    let tokio_runtime = Builder::new_multi_thread()
-        .worker_threads(1)
-        .enable_all()
-        .build()
-        .unwrap();
-    let web_server_handle = tokio_runtime.spawn(async move {
-        run_web_server().await.unwrap();
+    // Then start the web server...
+    let user_input_tx_for_web_server = user_input_tx.clone();
+    let web_server_handle = std::thread::spawn(move || {
+        run_web_server(user_input_tx_for_web_server);
     });
 
+    // Then start the platform-specific backend...
+    let user_input_tx_for_backend = user_input_tx.clone();
+    let mut backend = desktop_backend::DesktopBackend::new(user_input_tx_for_backend);
     backend.run().unwrap();
 
+    // Wait for the application to finish and the other processes will be finished too
     app_handle.join().unwrap().unwrap();
-    tokio_runtime.block_on(web_server_handle).unwrap();
 }
 
 #[cfg(feature = "remarkable")]
