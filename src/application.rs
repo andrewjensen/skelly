@@ -11,6 +11,8 @@ use crate::settings::Settings;
 pub enum UserInputEvent {
     Tap { x: u32, y: u32 },
     RequestExit,
+    PagePrevious,
+    PageNext,
     Navigate(NavigateCommand),
     Render(RenderCommand),
 }
