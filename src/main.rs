@@ -22,7 +22,7 @@ mod remarkable_backend;
 #[cfg(feature = "desktop")]
 mod desktop_backend;
 
-use crate::application::{Application, UserInputEvent};
+use crate::application::{Application, UserInputEvent, OutputEvent};
 use crate::backend::Backend;
 use crate::browser_core::{BrowserCore, BrowserState};
 use crate::settings::load_settings_with_fallback;
@@ -104,9 +104,10 @@ fn main() {
     info!("Settings: {:#?}", settings);
 
     let (user_input_tx, user_input_rx) = channel::<UserInputEvent>();
+    let (output_tx, output_rx) = channel::<OutputEvent>();
 
     // Start the core application...
-    let mut app = Application::new(settings.clone(), user_input_rx);
+    let mut app = Application::new(settings.clone(), user_input_rx, output_tx);
     let app_handle = std::thread::spawn(move || {
         app.run().map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
             Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
@@ -121,7 +122,7 @@ fn main() {
 
     // Then start the platform-specific backend...
     let user_input_tx_for_backend = user_input_tx.clone();
-    let mut backend = desktop_backend::DesktopBackend::new(user_input_tx_for_backend);
+    let mut backend = desktop_backend::DesktopBackend::new(user_input_tx_for_backend, output_rx);
     backend.run().unwrap();
 
     // Wait for the application to finish and the other processes will be finished too

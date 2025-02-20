@@ -20,18 +20,20 @@ use crate::settings::Settings;
 pub struct DesktopBackend {
     window: Option<Window>,
     mouse_position: (f64, f64),
-    input_event_sender: Sender<UserInputEvent>,
+    user_input_tx: Sender<UserInputEvent>,
+    output_rx: Receiver<OutputEvent>,
     event_loop: Option<EventLoop<()>>,
 }
 
 impl DesktopBackend {
-    pub fn new(input_event_sender: Sender<UserInputEvent>) -> Self {
+    pub fn new(user_input_tx: Sender<UserInputEvent>, output_rx: Receiver<OutputEvent>) -> Self {
         let event_loop = EventLoop::new().unwrap();
 
         Self {
             window: None,
             mouse_position: (0.0, 0.0),
-            input_event_sender,
+            user_input_tx,
+            output_rx,
             event_loop: Some(event_loop),
         }
     }
@@ -86,6 +88,8 @@ impl ApplicationHandler for DesktopBackend {
         buffer.fill(bg_u32);
 
         buffer.present().unwrap();
+
+        self.user_input_tx.send(UserInputEvent::RequestInitialPaint).unwrap();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -125,17 +129,17 @@ impl ApplicationHandler for DesktopBackend {
                 match event.logical_key {
                     Key::Named(NamedKey::ArrowLeft) => {
                         info!("Left arrow key pressed");
-                        self.input_event_sender.send(UserInputEvent::PagePrevious).unwrap();
+                        self.user_input_tx.send(UserInputEvent::PagePrevious).unwrap();
                     }
                     Key::Named(NamedKey::ArrowRight) => {
                         info!("Right arrow key pressed");
-                        self.input_event_sender.send(UserInputEvent::PageNext).unwrap();
+                        self.user_input_tx.send(UserInputEvent::PageNext).unwrap();
                     }
                     Key::Named(NamedKey::Escape) => {
                         info!("Escape key pressed");
                         event_loop.exit();
 
-                        self.input_event_sender.send(UserInputEvent::RequestExit).unwrap();
+                        self.user_input_tx.send(UserInputEvent::RequestExit).unwrap();
                     }
                     _ => {}
                 }
@@ -159,7 +163,7 @@ impl ApplicationHandler for DesktopBackend {
                         cursor_x, cursor_y
                     );
 
-                    self.input_event_sender
+                    self.user_input_tx
                         .send(UserInputEvent::Tap {
                             x: cursor_x,
                             y: cursor_y,

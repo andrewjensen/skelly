@@ -1,14 +1,16 @@
 #![allow(dead_code)]
 
+use image::{load_from_memory, RgbaImage};
 use log::{info, warn};
 use serde::Deserialize;
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, Sender};
 
 use crate::browser_core::BrowserCore;
 use crate::settings::Settings;
 
 #[derive(Debug)]
 pub enum UserInputEvent {
+    RequestInitialPaint,
     Tap { x: u32, y: u32 },
     RequestExit,
     PagePrevious,
@@ -31,33 +33,40 @@ pub struct RenderCommand {
 
 pub enum OutputEvent {
     // TODO: send the screen pixels to the backend
+    RenderFullScreen(RgbaImage),
 }
 
 #[allow(dead_code)]
 pub struct Application {
     pub browser_core: BrowserCore,
-    pub input_event_receiver: Receiver<UserInputEvent>,
-    // pub output_event_sender: Sender<OutputEvent>,
-    // pub output_event_receiver: Receiver<OutputEvent>,
+    pub user_input_rx: Receiver<UserInputEvent>,
+    pub output_tx: Sender<OutputEvent>,
 }
 
 impl Application {
-    pub fn new(settings: Settings, user_input_rx: Receiver<UserInputEvent>) -> Self {
-        // let (output_event_sender, output_event_receiver) = channel::<OutputEvent>(32);
-
+    pub fn new(settings: Settings, user_input_rx: Receiver<UserInputEvent>, output_tx: Sender<OutputEvent>) -> Self {
         Self {
             browser_core: BrowserCore::new(settings),
-            input_event_receiver: user_input_rx,
-            // output_event_sender,
-            // output_event_receiver,
+            user_input_rx,
+            output_tx,
         }
     }
 
     pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         info!("Application running");
 
-        while let Ok(input_event) = self.input_event_receiver.recv() {
+        while let Ok(input_event) = self.user_input_rx.recv() {
             match input_event {
+                UserInputEvent::RequestInitialPaint => {
+                    info!("Requesting initial paint");
+
+                    let placeholder_view = load_from_memory(include_bytes!(
+                        "../assets/placeholder-initial-view.png"
+                    ));
+                    let placeholder_view = placeholder_view.unwrap().to_rgba8();
+
+                    self.output_tx.send(OutputEvent::RenderFullScreen(placeholder_view))?;
+                }
                 UserInputEvent::Tap { x, y } => {
                     info!("Tap event: {:?}", (x, y));
                 }
