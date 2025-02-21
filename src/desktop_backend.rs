@@ -1,5 +1,5 @@
 use image::Rgb;
-use log::info;
+use log::{info, warn, error};
 use softbuffer::Surface;
 use std::num::NonZeroU32;
 use std::rc::Rc;
@@ -10,7 +10,7 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 use winit::window::{Window, WindowId};
-use std::sync::mpsc::{channel, Sender, Receiver};
+use std::sync::mpsc::{channel, Sender, Receiver, TryRecvError};
 
 use crate::{CANVAS_HEIGHT, CANVAS_WIDTH};
 use crate::application::{UserInputEvent, OutputEvent};
@@ -18,7 +18,8 @@ use crate::backend::Backend;
 use crate::settings::Settings;
 
 pub struct DesktopBackend {
-    window: Option<Window>,
+    window: Option<Rc<Window>>,
+    surface: Option<Surface<Rc<Window>, Rc<Window>>>,
     mouse_position: (f64, f64),
     user_input_tx: Sender<UserInputEvent>,
     output_rx: Receiver<OutputEvent>,
@@ -31,6 +32,7 @@ impl DesktopBackend {
 
         Self {
             window: None,
+            surface: None,
             mouse_position: (0.0, 0.0),
             user_input_tx,
             output_rx,
@@ -44,7 +46,7 @@ impl Backend for DesktopBackend {
         info!("Desktop backend running");
 
         let event_loop = self.event_loop.take().unwrap();
-        event_loop.set_control_flow(ControlFlow::Wait);
+        event_loop.set_control_flow(ControlFlow::Poll);
 
         let _result = event_loop.run_app(self);
 
@@ -62,25 +64,22 @@ impl ApplicationHandler for DesktopBackend {
             .with_resizable(false);
 
         let window = event_loop.create_window(window_attributes).unwrap();
-
-        // Store the window first before borrowing it
-        self.window = Some(window);
-
-        // Now get a reference to the window
-        let window = self.window.as_ref().unwrap();
         let window_rc = Rc::new(window);
 
-        let context = softbuffer::Context::new(window_rc.clone()).unwrap();
-        let mut surface = softbuffer::Surface::new(&context, window_rc.clone()).unwrap();
+        self.window = Some(window_rc.clone());
 
-        surface
+        let context = softbuffer::Context::new(window_rc.clone()).unwrap();
+        let surface = softbuffer::Surface::new(&context, window_rc).unwrap();
+        self.surface = Some(surface);
+
+        self.surface.as_mut().unwrap()
             .resize(
                 NonZeroU32::new(CANVAS_WIDTH).unwrap(),
                 NonZeroU32::new(CANVAS_HEIGHT).unwrap(),
             )
             .unwrap();
 
-        let mut buffer = surface.buffer_mut().unwrap();
+        let mut buffer = self.surface.as_mut().unwrap().buffer_mut().unwrap();
         let bg = Rgb([255, 255, 255]);
 
         // Convert to the format softbuffer expects
@@ -99,6 +98,38 @@ impl ApplicationHandler for DesktopBackend {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
+                match self.output_rx.try_recv() {
+                    Ok(output_event) => {
+                        match output_event {
+                            OutputEvent::RenderFullScreen(image) => {
+                                info!("Received output event: RenderFullScreen");
+
+                                let mut buffer = self.surface.as_mut().expect("Surface not initialized").buffer_mut().unwrap();
+
+                                let image_width = image.width() as usize;
+
+                                for (x, y, pixel) in image.enumerate_pixels() {
+                                    let red = pixel.0[0] as u32;
+                                    let green = pixel.0[1] as u32;
+                                    let blue = pixel.0[2] as u32;
+
+                                    let color = blue | (green << 8) | (red << 16);
+                                    buffer[y as usize * image_width + x as usize] = color;
+                                }
+
+                                buffer.present().unwrap();
+                            }
+                        }
+                    }
+                    Err(TryRecvError::Empty) => {
+                        // No output event to receive, so we don't need to redraw
+                    }
+                    Err(TryRecvError::Disconnected) => {
+                        info!("Output channel disconnected");
+                        event_loop.exit();
+                    }
+                }
+
                 // Redraw the application.
                 //
                 // It's preferable for applications that do not render continuously to render in
