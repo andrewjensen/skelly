@@ -5,6 +5,7 @@ use log::{info, warn};
 use serde::Deserialize;
 use std::sync::mpsc::{Receiver, Sender};
 
+use crate::CANVAS_WIDTH;
 use crate::browser_core::{BrowserCore, BrowserState};
 use crate::settings::Settings;
 
@@ -71,6 +72,41 @@ impl Application {
                 }
                 UserInputEvent::Tap { x, y } => {
                     info!("Tap event: {:?}", (x, y));
+
+                    match self.browser_core.state {
+                        BrowserState::ViewingPage {
+                            url: _,
+                            page_canvases: _,
+                        } => {
+                            if x < CANVAS_WIDTH / 3 {
+                                info!("Tap: Previous page");
+
+                                match self.browser_core.get_pages().get(self.current_page_idx - 1) {
+                                    Some(page_canvas) => {
+                                        self.current_page_idx -= 1;
+                                        self.output_tx.send(OutputEvent::RenderFullScreen(page_canvas.clone()))?;
+                                    }
+                                    None => {
+                                        warn!("No previous page to display, ignoring tap");
+                                    }
+                                }
+                            } else {
+                                info!("Tap: Next page");
+                                match self.browser_core.get_pages().get(self.current_page_idx + 1) {
+                                    Some(page_canvas) => {
+                                        self.current_page_idx += 1;
+                                        self.output_tx.send(OutputEvent::RenderFullScreen(page_canvas.clone()))?;
+                                    }
+                                    None => {
+                                        warn!("No next page to display, ignoring tap");
+                                    }
+                                }
+                            }
+                        }
+                        _ => {
+                            info!("Ignoring tap event, not in viewing state");
+                        }
+                    };
                 }
                 UserInputEvent::RequestExit => {
                     info!("Requesting exit");
