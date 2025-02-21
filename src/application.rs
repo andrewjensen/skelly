@@ -115,7 +115,6 @@ impl Application {
                 UserInputEvent::Navigate(command) => {
                     info!("Received event: Navigate to {}", command.url);
 
-
                     let placeholder_view = load_from_memory(include_bytes!(
                         "../assets/placeholder-loading-view.png"
                     ));
@@ -143,6 +142,39 @@ impl Application {
                         }
                         _ => {
                             unreachable!("Unexpected browser state after navigation");
+                        }
+                    }
+                }
+                UserInputEvent::Render(command) => {
+                    info!("Received event: Render HTML {}", command.html);
+
+                    let placeholder_view = load_from_memory(include_bytes!(
+                        "../assets/placeholder-loading-view.png"
+                    ));
+                    let placeholder_view = placeholder_view.unwrap().to_rgba8();
+                    self.output_tx.send(OutputEvent::RenderFullScreen(placeholder_view))?;
+
+                    self.browser_core.render(&command.html, &command.page_url);
+
+                    match &self.browser_core.state {
+                        BrowserState::ViewingPage { url, page_canvases } => {
+                            info!("Page loaded successfully");
+
+                            self.current_page_idx = 0;
+                            let page_canvas = page_canvases.get(0).unwrap().clone();
+                            self.output_tx.send(OutputEvent::RenderFullScreen(page_canvas))?;
+                        }
+                        BrowserState::PageError { url, error } => {
+                            warn!("Failed to load the page, time to show the error view!");
+
+                            let placeholder_view = load_from_memory(include_bytes!(
+                                "../assets/placeholder-error-view.png"
+                            ));
+                            let placeholder_view = placeholder_view.unwrap().to_rgba8();
+                            self.output_tx.send(OutputEvent::RenderFullScreen(placeholder_view))?;
+                        }
+                        _ => {
+                            unreachable!("Unexpected browser state after render");
                         }
                     }
                 }
