@@ -4,10 +4,10 @@ use libremarkable::framebuffer::common::*;
 use libremarkable::framebuffer::core::Framebuffer;
 use libremarkable::framebuffer::{FramebufferIO, FramebufferRefresh};
 use libremarkable::input::{ev::EvDevContext, InputDevice, InputEvent, MultitouchEvent};
-use log::{info, warn};
-use std::sync::mpsc::{Receiver, Sender, channel};
+use log::info;
+use std::sync::mpsc::{channel, Receiver, Sender};
 
-use crate::application::{UserInputEvent, OutputEvent};
+use crate::application::{OutputEvent, UserInputEvent};
 use crate::backend::Backend;
 
 pub struct RemarkableBackend {
@@ -73,7 +73,9 @@ impl Backend for RemarkableBackend {
             }
         });
 
-        self.user_input_tx.send(UserInputEvent::RequestInitialPaint).unwrap();
+        self.user_input_tx
+            .send(UserInputEvent::RequestInitialPaint)
+            .unwrap();
 
         while let Ok(output_event) = self.output_rx.recv() {
             match output_event {

@@ -1,21 +1,19 @@
 use image::Rgb;
-use log::{info, warn, error};
+use log::info;
 use softbuffer::Surface;
 use std::num::NonZeroU32;
 use std::rc::Rc;
+use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
 use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
-use winit::raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 use winit::window::{Window, WindowId};
-use std::sync::mpsc::{channel, Sender, Receiver, TryRecvError};
 
-use crate::{CANVAS_HEIGHT, CANVAS_WIDTH};
-use crate::application::{UserInputEvent, OutputEvent};
+use crate::application::{OutputEvent, UserInputEvent};
 use crate::backend::Backend;
-use crate::settings::Settings;
+use crate::{CANVAS_HEIGHT, CANVAS_WIDTH};
 
 pub struct DesktopBackend {
     window: Option<Rc<Window>>,
@@ -72,7 +70,9 @@ impl ApplicationHandler for DesktopBackend {
         let surface = softbuffer::Surface::new(&context, window_rc).unwrap();
         self.surface = Some(surface);
 
-        self.surface.as_mut().unwrap()
+        self.surface
+            .as_mut()
+            .unwrap()
             .resize(
                 NonZeroU32::new(CANVAS_WIDTH).unwrap(),
                 NonZeroU32::new(CANVAS_HEIGHT).unwrap(),
@@ -88,7 +88,9 @@ impl ApplicationHandler for DesktopBackend {
 
         buffer.present().unwrap();
 
-        self.user_input_tx.send(UserInputEvent::RequestInitialPaint).unwrap();
+        self.user_input_tx
+            .send(UserInputEvent::RequestInitialPaint)
+            .unwrap();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -99,28 +101,31 @@ impl ApplicationHandler for DesktopBackend {
             }
             WindowEvent::RedrawRequested => {
                 match self.output_rx.try_recv() {
-                    Ok(output_event) => {
-                        match output_event {
-                            OutputEvent::RenderFullScreen(image) => {
-                                info!("Received output event: RenderFullScreen");
+                    Ok(output_event) => match output_event {
+                        OutputEvent::RenderFullScreen(image) => {
+                            info!("Received output event: RenderFullScreen");
 
-                                let mut buffer = self.surface.as_mut().expect("Surface not initialized").buffer_mut().unwrap();
+                            let mut buffer = self
+                                .surface
+                                .as_mut()
+                                .expect("Surface not initialized")
+                                .buffer_mut()
+                                .unwrap();
 
-                                let image_width = image.width() as usize;
+                            let image_width = image.width() as usize;
 
-                                for (x, y, pixel) in image.enumerate_pixels() {
-                                    let red = pixel.0[0] as u32;
-                                    let green = pixel.0[1] as u32;
-                                    let blue = pixel.0[2] as u32;
+                            for (x, y, pixel) in image.enumerate_pixels() {
+                                let red = pixel.0[0] as u32;
+                                let green = pixel.0[1] as u32;
+                                let blue = pixel.0[2] as u32;
 
-                                    let color = blue | (green << 8) | (red << 16);
-                                    buffer[y as usize * image_width + x as usize] = color;
-                                }
-
-                                buffer.present().unwrap();
+                                let color = blue | (green << 8) | (red << 16);
+                                buffer[y as usize * image_width + x as usize] = color;
                             }
+
+                            buffer.present().unwrap();
                         }
-                    }
+                    },
                     Err(TryRecvError::Empty) => {
                         // No output event to receive, so we don't need to redraw
                     }
@@ -160,17 +165,23 @@ impl ApplicationHandler for DesktopBackend {
                 match event.logical_key {
                     Key::Named(NamedKey::ArrowLeft) => {
                         info!("Left arrow key pressed");
-                        self.user_input_tx.send(UserInputEvent::ViewPreviousPage).unwrap();
+                        self.user_input_tx
+                            .send(UserInputEvent::ViewPreviousPage)
+                            .unwrap();
                     }
                     Key::Named(NamedKey::ArrowRight) => {
                         info!("Right arrow key pressed");
-                        self.user_input_tx.send(UserInputEvent::ViewNextPage).unwrap();
+                        self.user_input_tx
+                            .send(UserInputEvent::ViewNextPage)
+                            .unwrap();
                     }
                     Key::Named(NamedKey::Escape) => {
                         info!("Escape key pressed");
                         event_loop.exit();
 
-                        self.user_input_tx.send(UserInputEvent::RequestExit).unwrap();
+                        self.user_input_tx
+                            .send(UserInputEvent::RequestExit)
+                            .unwrap();
                     }
                     _ => {}
                 }
@@ -189,10 +200,7 @@ impl ApplicationHandler for DesktopBackend {
                 if state == ElementState::Pressed && button == MouseButton::Left {
                     let cursor_x: u32 = self.mouse_position.0 as u32;
                     let cursor_y: u32 = self.mouse_position.1 as u32;
-                    info!(
-                        "Left mouse button pressed at ({}, {})",
-                        cursor_x, cursor_y
-                    );
+                    info!("Left mouse button pressed at ({}, {})", cursor_x, cursor_y);
 
                     self.user_input_tx
                         .send(UserInputEvent::Tap {

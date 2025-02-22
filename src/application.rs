@@ -5,9 +5,9 @@ use log::{info, warn};
 use serde::Deserialize;
 use std::sync::mpsc::{Receiver, Sender};
 
-use crate::CANVAS_WIDTH;
 use crate::browser_core::{BrowserCore, BrowserState};
 use crate::settings::Settings;
+use crate::CANVAS_WIDTH;
 
 #[derive(Debug)]
 pub enum UserInputEvent {
@@ -46,7 +46,11 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn new(settings: Settings, user_input_rx: Receiver<UserInputEvent>, output_tx: Sender<OutputEvent>) -> Self {
+    pub fn new(
+        settings: Settings,
+        user_input_rx: Receiver<UserInputEvent>,
+        output_tx: Sender<OutputEvent>,
+    ) -> Self {
         Self {
             browser_core: BrowserCore::new(settings),
             user_input_rx,
@@ -63,12 +67,12 @@ impl Application {
                 UserInputEvent::RequestInitialPaint => {
                     info!("Requesting initial paint");
 
-                    let placeholder_view = load_from_memory(include_bytes!(
-                        "../assets/placeholder-initial-view.png"
-                    ));
+                    let placeholder_view =
+                        load_from_memory(include_bytes!("../assets/placeholder-initial-view.png"));
                     let placeholder_view = placeholder_view.unwrap().to_rgba8();
 
-                    self.output_tx.send(OutputEvent::RenderFullScreen(placeholder_view))?;
+                    self.output_tx
+                        .send(OutputEvent::RenderFullScreen(placeholder_view))?;
                 }
                 UserInputEvent::Tap { x, y } => {
                     info!("Tap event: {:?}", (x, y));
@@ -98,30 +102,35 @@ impl Application {
                 UserInputEvent::Navigate(command) => {
                     info!("Received event: Navigate to {}", command.url);
 
-                    let placeholder_view = load_from_memory(include_bytes!(
-                        "../assets/placeholder-loading-view.png"
-                    ));
+                    let placeholder_view =
+                        load_from_memory(include_bytes!("../assets/placeholder-loading-view.png"));
                     let placeholder_view = placeholder_view.unwrap().to_rgba8();
-                    self.output_tx.send(OutputEvent::RenderFullScreen(placeholder_view))?;
+                    self.output_tx
+                        .send(OutputEvent::RenderFullScreen(placeholder_view))?;
 
                     self.browser_core.navigate_to(&command.url);
 
                     match &self.browser_core.state {
-                        BrowserState::ViewingPage { url, page_canvases } => {
+                        BrowserState::ViewingPage {
+                            url: _,
+                            page_canvases,
+                        } => {
                             info!("Page loaded successfully");
 
                             self.current_page_idx = 0;
                             let page_canvas = page_canvases.get(0).unwrap().clone();
-                            self.output_tx.send(OutputEvent::RenderFullScreen(page_canvas))?;
+                            self.output_tx
+                                .send(OutputEvent::RenderFullScreen(page_canvas))?;
                         }
-                        BrowserState::PageError { url, error } => {
+                        BrowserState::PageError { url: _, error: _ } => {
                             warn!("Failed to load the page, time to show the error view!");
 
                             let placeholder_view = load_from_memory(include_bytes!(
                                 "../assets/placeholder-error-view.png"
                             ));
                             let placeholder_view = placeholder_view.unwrap().to_rgba8();
-                            self.output_tx.send(OutputEvent::RenderFullScreen(placeholder_view))?;
+                            self.output_tx
+                                .send(OutputEvent::RenderFullScreen(placeholder_view))?;
                         }
                         _ => {
                             unreachable!("Unexpected browser state after navigation");
@@ -131,30 +140,35 @@ impl Application {
                 UserInputEvent::Render(command) => {
                     info!("Received event: Render HTML {}", command.html);
 
-                    let placeholder_view = load_from_memory(include_bytes!(
-                        "../assets/placeholder-loading-view.png"
-                    ));
+                    let placeholder_view =
+                        load_from_memory(include_bytes!("../assets/placeholder-loading-view.png"));
                     let placeholder_view = placeholder_view.unwrap().to_rgba8();
-                    self.output_tx.send(OutputEvent::RenderFullScreen(placeholder_view))?;
+                    self.output_tx
+                        .send(OutputEvent::RenderFullScreen(placeholder_view))?;
 
                     self.browser_core.render(&command.html, &command.page_url);
 
                     match &self.browser_core.state {
-                        BrowserState::ViewingPage { url, page_canvases } => {
+                        BrowserState::ViewingPage {
+                            url: _,
+                            page_canvases,
+                        } => {
                             info!("Page loaded successfully");
 
                             self.current_page_idx = 0;
                             let page_canvas = page_canvases.get(0).unwrap().clone();
-                            self.output_tx.send(OutputEvent::RenderFullScreen(page_canvas))?;
+                            self.output_tx
+                                .send(OutputEvent::RenderFullScreen(page_canvas))?;
                         }
-                        BrowserState::PageError { url, error } => {
+                        BrowserState::PageError { url: _, error: _ } => {
                             warn!("Failed to load the page, time to show the error view!");
 
                             let placeholder_view = load_from_memory(include_bytes!(
                                 "../assets/placeholder-error-view.png"
                             ));
                             let placeholder_view = placeholder_view.unwrap().to_rgba8();
-                            self.output_tx.send(OutputEvent::RenderFullScreen(placeholder_view))?;
+                            self.output_tx
+                                .send(OutputEvent::RenderFullScreen(placeholder_view))?;
                         }
                         _ => {
                             unreachable!("Unexpected browser state after render");
@@ -180,7 +194,9 @@ impl Application {
         match self.browser_core.get_pages().get(self.current_page_idx + 1) {
             Some(page_canvas) => {
                 self.current_page_idx += 1;
-                self.output_tx.send(OutputEvent::RenderFullScreen(page_canvas.clone())).unwrap();
+                self.output_tx
+                    .send(OutputEvent::RenderFullScreen(page_canvas.clone()))
+                    .unwrap();
             }
             None => {
                 warn!("No next page to display, ignoring tap");
@@ -197,7 +213,9 @@ impl Application {
         match self.browser_core.get_pages().get(self.current_page_idx - 1) {
             Some(page_canvas) => {
                 self.current_page_idx -= 1;
-                self.output_tx.send(OutputEvent::RenderFullScreen(page_canvas.clone())).unwrap();
+                self.output_tx
+                    .send(OutputEvent::RenderFullScreen(page_canvas.clone()))
+                    .unwrap();
             }
             None => {
                 warn!("No previous page to display, ignoring tap");

@@ -22,7 +22,7 @@ mod desktop_backend;
 #[cfg(feature = "remarkable")]
 mod remarkable_backend;
 
-use crate::application::{Application, UserInputEvent, OutputEvent};
+use crate::application::{Application, OutputEvent, UserInputEvent};
 use crate::backend::Backend;
 use crate::browser_core::{BrowserCore, BrowserState};
 use crate::settings::load_settings_with_fallback;
@@ -54,9 +54,13 @@ fn main() {
         // Start the core application...
         let mut app = Application::new(settings.clone(), user_input_rx, output_tx);
         let app_handle = std::thread::spawn(move || {
-            app.run().map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
-                Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
-            })
+            app.run()
+                .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
+                    Box::new(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        e.to_string(),
+                    ))
+                })
         });
 
         // Then start the web server...
@@ -69,10 +73,12 @@ fn main() {
         let user_input_tx_for_backend = user_input_tx.clone();
 
         #[cfg(feature = "desktop")]
-        let mut backend = desktop_backend::DesktopBackend::new(user_input_tx_for_backend, output_rx);
+        let mut backend =
+            desktop_backend::DesktopBackend::new(user_input_tx_for_backend, output_rx);
 
         #[cfg(feature = "remarkable")]
-        let mut backend = remarkable_backend::RemarkableBackend::new(user_input_tx_for_backend, output_rx);
+        let mut backend =
+            remarkable_backend::RemarkableBackend::new(user_input_tx_for_backend, output_rx);
 
         backend.run().unwrap();
 
