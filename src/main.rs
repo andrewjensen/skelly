@@ -72,7 +72,7 @@ fn main() {
         let mut backend = desktop_backend::DesktopBackend::new(user_input_tx_for_backend, output_rx);
 
         #[cfg(feature = "remarkable")]
-        let mut backend = remarkable_backend::RemarkableBackend::new(settings.clone());
+        let mut backend = remarkable_backend::RemarkableBackend::new(user_input_tx_for_backend, output_rx);
 
         backend.run().unwrap();
 
