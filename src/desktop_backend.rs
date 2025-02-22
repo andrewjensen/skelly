@@ -160,11 +160,11 @@ impl ApplicationHandler for DesktopBackend {
                 match event.logical_key {
                     Key::Named(NamedKey::ArrowLeft) => {
                         info!("Left arrow key pressed");
-                        self.user_input_tx.send(UserInputEvent::PagePrevious).unwrap();
+                        self.user_input_tx.send(UserInputEvent::ViewPreviousPage).unwrap();
                     }
                     Key::Named(NamedKey::ArrowRight) => {
                         info!("Right arrow key pressed");
-                        self.user_input_tx.send(UserInputEvent::PageNext).unwrap();
+                        self.user_input_tx.send(UserInputEvent::ViewNextPage).unwrap();
                     }
                     Key::Named(NamedKey::Escape) => {
                         info!("Escape key pressed");

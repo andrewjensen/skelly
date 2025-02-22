@@ -14,8 +14,8 @@ pub enum UserInputEvent {
     RequestInitialPaint,
     Tap { x: u32, y: u32 },
     RequestExit,
-    PagePrevious,
-    PageNext,
+    ViewPreviousPage,
+    ViewNextPage,
     Navigate(NavigateCommand),
     Render(RenderCommand),
 }
@@ -80,27 +80,10 @@ impl Application {
                         } => {
                             if x < CANVAS_WIDTH / 3 {
                                 info!("Tap: Previous page");
-
-                                match self.browser_core.get_pages().get(self.current_page_idx - 1) {
-                                    Some(page_canvas) => {
-                                        self.current_page_idx -= 1;
-                                        self.output_tx.send(OutputEvent::RenderFullScreen(page_canvas.clone()))?;
-                                    }
-                                    None => {
-                                        warn!("No previous page to display, ignoring tap");
-                                    }
-                                }
+                                self.view_previous_page();
                             } else {
                                 info!("Tap: Next page");
-                                match self.browser_core.get_pages().get(self.current_page_idx + 1) {
-                                    Some(page_canvas) => {
-                                        self.current_page_idx += 1;
-                                        self.output_tx.send(OutputEvent::RenderFullScreen(page_canvas.clone()))?;
-                                    }
-                                    None => {
-                                        warn!("No next page to display, ignoring tap");
-                                    }
-                                }
+                                self.view_next_page();
                             }
                         }
                         _ => {
@@ -178,6 +161,12 @@ impl Application {
                         }
                     }
                 }
+                UserInputEvent::ViewPreviousPage => {
+                    self.view_previous_page();
+                }
+                UserInputEvent::ViewNextPage => {
+                    self.view_next_page();
+                }
                 _ => {
                     warn!("Unhandled UserInputEvent: {:?}", input_event);
                 }
@@ -185,5 +174,34 @@ impl Application {
         }
 
         Ok(())
+    }
+
+    fn view_next_page(&mut self) {
+        match self.browser_core.get_pages().get(self.current_page_idx + 1) {
+            Some(page_canvas) => {
+                self.current_page_idx += 1;
+                self.output_tx.send(OutputEvent::RenderFullScreen(page_canvas.clone())).unwrap();
+            }
+            None => {
+                warn!("No next page to display, ignoring tap");
+            }
+        }
+    }
+
+    fn view_previous_page(&mut self) {
+        if self.current_page_idx == 0 {
+            warn!("No previous page to display, ignoring tap");
+            return;
+        }
+
+        match self.browser_core.get_pages().get(self.current_page_idx - 1) {
+            Some(page_canvas) => {
+                self.current_page_idx -= 1;
+                self.output_tx.send(OutputEvent::RenderFullScreen(page_canvas.clone())).unwrap();
+            }
+            None => {
+                warn!("No previous page to display, ignoring tap");
+            }
+        }
     }
 }
