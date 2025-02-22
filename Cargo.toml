@@ -37,7 +37,7 @@ softbuffer = { optional = true, version = "0.4.6" }
 winit = { optional = true, version = "0.30.9" }
 
 [features]
-default = ["static"]
+default = ["desktop"]
 desktop = ["softbuffer", "winit"]
 remarkable = ["libremarkable"]
 static = []

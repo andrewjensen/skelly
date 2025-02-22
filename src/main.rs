@@ -34,8 +34,49 @@ pub const CANVAS_MARGIN_TOP: u32 = 150;
 pub const CANVAS_MARGIN_BOTTOM: u32 = 150;
 pub const DEBUG_LAYOUT: bool = false;
 
-#[cfg(feature = "static")]
 fn main() {
+    #[cfg(feature = "static")]
+    {
+        main_static();
+    }
+
+    #[cfg(not(feature = "static"))]
+    {
+        env_logger::init();
+
+        let settings_file_path = "/home/root/.config/skelly/settings.json";
+        let settings = load_settings_with_fallback(settings_file_path);
+        info!("Settings: {:#?}", settings);
+
+        let (user_input_tx, user_input_rx) = channel::<UserInputEvent>();
+        let (output_tx, output_rx) = channel::<OutputEvent>();
+
+        // Start the core application...
+        let mut app = Application::new(settings.clone(), user_input_rx, output_tx);
+        let app_handle = std::thread::spawn(move || {
+            app.run().map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
+                Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+            })
+        });
+
+        // Then start the web server...
+        let user_input_tx_for_web_server = user_input_tx.clone();
+        let web_server_handle = std::thread::spawn(move || {
+            run_web_server(user_input_tx_for_web_server);
+        });
+
+        // Then start the platform-specific backend...
+        let user_input_tx_for_backend = user_input_tx.clone();
+        let mut backend = desktop_backend::DesktopBackend::new(user_input_tx_for_backend, output_rx);
+        backend.run().unwrap();
+
+        // Wait for the application to finish and the other processes will be finished too
+        app_handle.join().unwrap().unwrap();
+    }
+}
+
+#[allow(dead_code)]
+fn main_static() {
     env_logger::init();
 
     // Get the first command line argument and log it out
@@ -81,6 +122,7 @@ fn main() {
     info!("Done");
 }
 
+#[allow(dead_code)]
 fn save_page_canvas(
     page_canvas: RgbaImage,
     file_path: &str,
@@ -91,42 +133,6 @@ fn save_page_canvas(
     std::fs::write(file_path, png_buffer.into_inner())?;
 
     Ok(())
-}
-
-#[cfg(feature = "desktop")]
-fn main() {
-    env_logger::init();
-
-    info!("Running in desktop mode");
-
-    let settings_file_path = "/home/root/.config/skelly/settings.json";
-    let settings = load_settings_with_fallback(settings_file_path);
-    info!("Settings: {:#?}", settings);
-
-    let (user_input_tx, user_input_rx) = channel::<UserInputEvent>();
-    let (output_tx, output_rx) = channel::<OutputEvent>();
-
-    // Start the core application...
-    let mut app = Application::new(settings.clone(), user_input_rx, output_tx);
-    let app_handle = std::thread::spawn(move || {
-        app.run().map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
-            Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
-        })
-    });
-
-    // Then start the web server...
-    let user_input_tx_for_web_server = user_input_tx.clone();
-    let web_server_handle = std::thread::spawn(move || {
-        run_web_server(user_input_tx_for_web_server);
-    });
-
-    // Then start the platform-specific backend...
-    let user_input_tx_for_backend = user_input_tx.clone();
-    let mut backend = desktop_backend::DesktopBackend::new(user_input_tx_for_backend, output_rx);
-    backend.run().unwrap();
-
-    // Wait for the application to finish and the other processes will be finished too
-    app_handle.join().unwrap().unwrap();
 }
 
 #[cfg(feature = "remarkable")]
