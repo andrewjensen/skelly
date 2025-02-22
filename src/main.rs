@@ -65,7 +65,7 @@ fn main() {
 
         // Then start the web server...
         let user_input_tx_for_web_server = user_input_tx.clone();
-        let web_server_handle = std::thread::spawn(move || {
+        let _web_server_handle = std::thread::spawn(move || {
             run_web_server(user_input_tx_for_web_server);
         });
 

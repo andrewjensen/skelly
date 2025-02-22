@@ -181,9 +181,6 @@ impl Application {
                 UserInputEvent::ViewNextPage => {
                     self.view_next_page();
                 }
-                _ => {
-                    warn!("Unhandled UserInputEvent: {:?}", input_event);
-                }
             }
         }
 

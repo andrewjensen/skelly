@@ -3,20 +3,20 @@
 use axum::body::Body;
 use axum::extract::{Request, State};
 use axum::http::StatusCode;
-use axum::response::{Html, IntoResponse, Response};
+use axum::response::{Html, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use http_body_util::BodyExt;
 use log::info;
 
-use std::sync::Arc;
-use tower_http::cors::CorsLayer;
-use tokio::runtime::Builder;
-use tokio::sync::mpsc::Sender as TokioSender;
-use tokio::sync::mpsc::channel as tokio_channel;
 use std::sync::mpsc::Sender as StdSender;
+use std::sync::Arc;
+use tokio::runtime::Builder;
+use tokio::sync::mpsc::channel as tokio_channel;
+use tokio::sync::mpsc::Sender as TokioSender;
+use tower_http::cors::CorsLayer;
 
-use crate::application::{UserInputEvent, NavigateCommand, RenderCommand};
+use crate::application::{NavigateCommand, RenderCommand, UserInputEvent};
 
 struct ServerState {
     input_internal_tx: TokioSender<UserInputEvent>,
@@ -29,9 +29,7 @@ pub fn run_web_server(user_input_tx: StdSender<UserInputEvent>) {
     let (input_internal_tx, mut input_internal_rx) = tokio_channel::<UserInputEvent>(32);
 
     // let input_tx_shared = input_internal_tx.clone();
-    let shared_server_state = Arc::new(ServerState {
-        input_internal_tx,
-    });
+    let shared_server_state = Arc::new(ServerState { input_internal_tx });
 
     // Start a tokio runtime just for the web server
     let tokio_runtime = Builder::new_multi_thread()
@@ -103,7 +101,7 @@ async fn handle_render_command(State(state): State<Arc<ServerState>>, req: Reque
 
     let bytes = match body.collect().await {
         Ok(collected) => collected.to_bytes(),
-        Err(err) => {
+        Err(_err) => {
             return Response::builder()
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::empty())
