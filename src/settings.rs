@@ -1,7 +1,7 @@
 use log::warn;
 use serde::Deserialize;
-use tokio::fs::File;
-use tokio::io::AsyncReadExt;
+use std::fs::File;
+use std::io::Read;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Settings {
@@ -27,8 +27,8 @@ impl Default for Settings {
     }
 }
 
-pub async fn load_settings_with_fallback(file_path: &str) -> Settings {
-    match load_settings(file_path).await {
+pub fn load_settings_with_fallback(file_path: &str) -> Settings {
+    match load_settings(file_path) {
         Ok(settings) => settings,
         Err(_) => {
             warn!("Failed to load settings from file, using default settings");
@@ -38,11 +38,11 @@ pub async fn load_settings_with_fallback(file_path: &str) -> Settings {
     }
 }
 
-async fn load_settings(file_path: &str) -> Result<Settings, Box<dyn std::error::Error>> {
-    let mut file = File::open(file_path).await?;
+fn load_settings(file_path: &str) -> Result<Settings, Box<dyn std::error::Error>> {
+    let mut file = File::open(file_path)?;
 
     let mut contents = vec![];
-    file.read_to_end(&mut contents).await?;
+    file.read_to_end(&mut contents)?;
     let settings = serde_json::from_slice(&contents)?;
 
     Ok(settings)

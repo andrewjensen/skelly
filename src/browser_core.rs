@@ -38,7 +38,7 @@ impl BrowserCore {
         }
     }
 
-    pub async fn navigate_to(&mut self, url: &str) {
+    pub fn navigate_to(&mut self, url: &str) {
         info!("Navigating to {}", url);
 
         self.state = BrowserState::LoadingPage {
@@ -46,7 +46,7 @@ impl BrowserCore {
         };
 
         info!("Fetching webpage...");
-        let fetch_result = fetch_webpage(url).await;
+        let fetch_result = fetch_webpage(url);
         if let Err(err) = fetch_result {
             error!("Failed to fetch webpage: {}", err);
             self.state = BrowserState::PageError {
@@ -65,16 +65,16 @@ impl BrowserCore {
             return;
         }
 
-        self.do_render(&page.content, url).await;
+        self.do_render(&page.content, url);
     }
 
-    pub async fn render(&mut self, html: &str, page_url: &str) {
+    pub fn render(&mut self, html: &str, page_url: &str) {
         info!("Rendering direct HTML from page url: {}", page_url);
 
-        self.do_render(html, page_url).await
+        self.do_render(html, page_url)
     }
 
-    async fn do_render(&mut self, html: &str, page_url: &str) {
+    fn do_render(&mut self, html: &str, page_url: &str) {
         info!("Parsing...");
         let parse_result = parse_webpage(html);
         if let Err(err) = parse_result {
@@ -89,7 +89,7 @@ impl BrowserCore {
         // info!("Parsed document: {:#?}", document);
 
         info!("Fetching images...");
-        let images = fetch_images(page_url, &document).await;
+        let images = fetch_images(page_url, &document);
 
         info!("Rendering pages...");
         let mut renderer = Renderer::new(&self.settings.rendering, page_url, images);
@@ -111,12 +111,12 @@ impl BrowserCore {
     }
 }
 
-async fn fetch_images(webpage_url: &str, document: &Document) -> ImagesByUrl {
+fn fetch_images(webpage_url: &str, document: &Document) -> ImagesByUrl {
     let mut images = HashMap::new();
 
     let image_urls = get_image_urls(webpage_url, document);
     for image_url in image_urls {
-        let image_response = fetch_image(&image_url).await;
+        let image_response = fetch_image(&image_url);
         if let Err(err) = image_response {
             warn!("Failed to fetch image: {}", err);
             images.insert(image_url, None);

@@ -33,8 +33,12 @@ libremarkable = { optional = true, version = "0.6.2", default-features = false, 
     "input-types",
 ] }
 
+softbuffer = { optional = true, version = "0.4.6" }
+winit = { optional = true, version = "0.30.9" }
+
 [features]
-default = ["static"]
+default = ["desktop"]
+desktop = ["softbuffer", "winit"]
 remarkable = ["libremarkable"]
 static = []
 
