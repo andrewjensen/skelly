@@ -106,7 +106,7 @@ impl<'a> Renderer<'a> {
             buffer,
             font_system,
             swash_cache,
-            topbar_state: TopbarState::Minimized,
+            topbar_state: TopbarState::Normal,
             keyboard_state: KeyboardState::Normal,
         }
     }
