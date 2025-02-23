@@ -14,6 +14,7 @@ mod network;
 mod parsing;
 mod rendering;
 mod settings;
+mod topbar;
 mod web_server;
 
 #[cfg(feature = "desktop")]

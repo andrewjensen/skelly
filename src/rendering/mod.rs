@@ -10,8 +10,9 @@ use std::fmt;
 use crate::browser_core::ImagesByUrl;
 use crate::keyboard::{add_keyboard_overlay, KeyboardState};
 use crate::network::resolve_url;
-use crate::parsing::{Block, Document, ListItem, Span, SpanStyle, TableRow, TableCell};
+use crate::parsing::{Block, Document, ListItem, Span, SpanStyle, TableCell, TableRow};
 use crate::settings::RenderingSettings;
+use crate::topbar::{add_topbar_overlay, TopbarState};
 
 use crate::{CANVAS_HEIGHT, CANVAS_MARGIN_BOTTOM, CANVAS_MARGIN_TOP, CANVAS_WIDTH, DEBUG_LAYOUT};
 
@@ -19,7 +20,10 @@ mod helpers;
 mod images;
 mod progress;
 
-use helpers::{create_blank_canvas, draw_box_border, draw_filled_rectangle, draw_horizontal_line, draw_vertical_line};
+use helpers::{
+    create_blank_canvas, draw_box_border, draw_filled_rectangle, draw_horizontal_line,
+    draw_vertical_line,
+};
 use images::{render_placeholder_image_block, rescale_image};
 use progress::add_progress_overlay;
 
@@ -71,6 +75,7 @@ pub struct Renderer<'a> {
     buffer: Buffer,
     font_system: FontSystem,
     swash_cache: SwashCache,
+    topbar_state: TopbarState,
     keyboard_state: KeyboardState,
 }
 
@@ -101,7 +106,8 @@ impl<'a> Renderer<'a> {
             buffer,
             font_system,
             swash_cache,
-            keyboard_state: KeyboardState::Hidden,
+            topbar_state: TopbarState::Minimized,
+            keyboard_state: KeyboardState::Normal,
         }
     }
 
@@ -195,6 +201,8 @@ impl<'a> Renderer<'a> {
                     page_canvas,
                 );
             }
+
+            add_topbar_overlay(page_canvas, &self.topbar_state);
 
             add_keyboard_overlay(
                 page_canvas,
@@ -531,7 +539,7 @@ impl<'a> Renderer<'a> {
             bottom_border_end_x,
             bottom_border_y,
             COLOR_TABLE_ROW_BORDER,
-            &mut canvas
+            &mut canvas,
         );
 
         RenderedBlock {
@@ -562,9 +570,7 @@ impl<'a> Renderer<'a> {
         let mut breakpoints = vec![];
 
         // Calculate total height needed for all cells
-        let total_height: u32 = rendered_cells.iter()
-            .map(|cell| cell.height)
-            .sum();
+        let total_height: u32 = rendered_cells.iter().map(|cell| cell.height).sum();
 
         let mut canvas = RgbaImage::new(CANVAS_WIDTH, total_height);
 
@@ -601,7 +607,9 @@ impl<'a> Renderer<'a> {
         cell_index: usize,
         settings: &BlockRenderSettings,
     ) -> RenderedBlock {
-        let child_block = Block::Paragraph { content: cell.content.clone() };
+        let child_block = Block::Paragraph {
+            content: cell.content.clone(),
+        };
         let mut child_render_settings = settings.clone();
         child_render_settings.margin_left += TABLE_CELL_PADDING_X;
         child_render_settings.margin_right += TABLE_CELL_PADDING_X;
@@ -636,7 +644,7 @@ impl<'a> Renderer<'a> {
             line_end_x,
             line_y,
             top_line_color,
-            &mut canvas
+            &mut canvas,
         );
 
         // Draw vertical line at left of cell
@@ -648,7 +656,7 @@ impl<'a> Renderer<'a> {
             line_start_y,
             line_end_y,
             COLOR_TABLE_ROW_BORDER,
-            &mut canvas
+            &mut canvas,
         );
 
         // Draw vertical line at right of cell
@@ -660,7 +668,7 @@ impl<'a> Renderer<'a> {
             line_start_y,
             line_end_y,
             COLOR_TABLE_ROW_BORDER,
-            &mut canvas
+            &mut canvas,
         );
 
         RenderedBlock {

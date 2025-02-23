@@ -7,12 +7,14 @@ pub enum KeyboardState {
     Shift,
 }
 
+#[derive(Debug)]
 pub struct PositionedKey {
     pub key: KeyCode,
     pub position: (u32, u32),
     pub size: (u32, u32),
 }
 
+#[derive(Debug)]
 pub enum KeyCode {
     // Lowercase
     LowercaseA,
