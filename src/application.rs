@@ -176,10 +176,24 @@ impl Application {
                     }
                 }
                 UserInputEvent::ViewPreviousPage => {
-                    self.view_previous_page();
+                    match self.browser_core.state {
+                        BrowserState::ViewingPage { .. } => {
+                            self.view_previous_page();
+                        }
+                        _ => {
+                            info!("Ignoring ViewPreviousPage event, not in viewing state");
+                        }
+                    };
                 }
                 UserInputEvent::ViewNextPage => {
-                    self.view_next_page();
+                    match self.browser_core.state {
+                        BrowserState::ViewingPage { .. } => {
+                            self.view_next_page();
+                        }
+                        _ => {
+                            info!("Ignoring ViewNextPage event, not in viewing state");
+                        }
+                    };
                 }
             }
         }
