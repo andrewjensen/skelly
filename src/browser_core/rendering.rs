@@ -201,7 +201,12 @@ impl<'a> Renderer<'a> {
                 );
             }
 
-            add_topbar_overlay(page_canvas, &self.topbar_state);
+            add_topbar_overlay(
+                page_canvas,
+                &mut self.font_system,
+                &mut self.swash_cache,
+                &self.topbar_state,
+            );
 
             add_keyboard_overlay(
                 page_canvas,
