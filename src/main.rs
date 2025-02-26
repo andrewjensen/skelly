@@ -17,12 +17,6 @@ mod settings;
 mod topbar;
 mod web_server;
 
-#[cfg(feature = "desktop")]
-mod desktop_backend;
-
-#[cfg(feature = "remarkable")]
-mod remarkable_backend;
-
 use crate::application::{Application, OutputEvent, UserInputEvent};
 use crate::backend::Backend;
 use crate::browser_core::{BrowserCore, BrowserState};
@@ -75,11 +69,13 @@ fn main() {
 
         #[cfg(feature = "desktop")]
         let mut backend =
-            desktop_backend::DesktopBackend::new(user_input_tx_for_backend, output_rx);
+            backend::desktop_backend::DesktopBackend::new(user_input_tx_for_backend, output_rx);
 
         #[cfg(feature = "remarkable")]
-        let mut backend =
-            remarkable_backend::RemarkableBackend::new(user_input_tx_for_backend, output_rx);
+        let mut backend = backend::remarkable_backend::RemarkableBackend::new(
+            user_input_tx_for_backend,
+            output_rx,
+        );
 
         backend.run().unwrap();
 
