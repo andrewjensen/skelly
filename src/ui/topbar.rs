@@ -20,6 +20,8 @@ const COLOR_URL_BAR_FILL: Rgba<u8> = Rgba([0xDD, 0xDD, 0xDD, 0xFF]);
 const COLOR_URL_BAR_BORDER: Rgba<u8> = Rgba([0x99, 0x99, 0x99, 0xFF]);
 const COLOR_URL_BAR_TEXT: Rgba<u8> = Rgba([0x66, 0x66, 0x66, 0xFF]);
 
+const ICON_DISABLED_OPACITY: f32 = 0.3;
+
 const MOCK_URL: &str = "https://www.example.com";
 
 pub fn add_topbar_overlay(
@@ -37,7 +39,13 @@ pub fn add_topbar_overlay(
 
     match topbar_state {
         TopbarState::Minimized => {
-            draw_icon(screen, &icon_menu, menu_icon_offset_x, menu_icon_offset_y);
+            draw_icon(
+                screen,
+                &icon_menu,
+                menu_icon_offset_x,
+                menu_icon_offset_y,
+                false,
+            );
         }
         TopbarState::Normal => {
             // Draw the background
@@ -49,7 +57,13 @@ pub fn add_topbar_overlay(
             );
 
             // Draw the menu icon on the right, same position as minimized
-            draw_icon(screen, &icon_menu, menu_icon_offset_x, menu_icon_offset_y);
+            draw_icon(
+                screen,
+                &icon_menu,
+                menu_icon_offset_x,
+                menu_icon_offset_y,
+                false,
+            );
 
             let icon_arrow_left = load_from_memory(include_bytes!(
                 "../../assets/icons/left-arrow-alt-regular-24.png"
@@ -62,6 +76,7 @@ pub fn add_topbar_overlay(
                 &icon_arrow_left,
                 icon_arrow_left_offset_x,
                 menu_icon_offset_y,
+                true,
             );
 
             let icon_arrow_right = load_from_memory(include_bytes!(
@@ -75,6 +90,7 @@ pub fn add_topbar_overlay(
                 &icon_arrow_right,
                 icon_arrow_right_offset_x,
                 menu_icon_offset_y,
+                true,
             );
 
             let url_bar_offset_x =
@@ -162,7 +178,13 @@ pub fn add_topbar_overlay(
 }
 
 // TODO: Move to a separate module, make it more generic than icons
-fn draw_icon(screen: &mut RgbaImage, icon: &RgbaImage, offset_x: u32, offset_y: u32) {
+fn draw_icon(
+    screen: &mut RgbaImage,
+    icon: &RgbaImage,
+    offset_x: u32,
+    offset_y: u32,
+    is_disabled: bool,
+) {
     let icon_width = icon.width();
     let icon_height = icon.height();
 
@@ -171,7 +193,10 @@ fn draw_icon(screen: &mut RgbaImage, icon: &RgbaImage, offset_x: u32, offset_y: 
             let canvas_x = icon_x + offset_x;
             let canvas_y = icon_y + offset_y;
 
-            let fg = icon.get_pixel(icon_x, icon_y);
+            let mut fg = icon.get_pixel(icon_x, icon_y).clone();
+            if is_disabled {
+                fg[3] = (fg[3] as f32 * ICON_DISABLED_OPACITY).round() as u8;
+            }
             let bg = screen.get_pixel(canvas_x, canvas_y);
             let mut result = bg.clone();
             result.blend(&fg);
