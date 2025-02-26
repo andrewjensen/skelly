@@ -15,8 +15,6 @@ use crate::browser_core::parsing::{
 };
 use crate::browser_core::ImagesByUrl;
 use crate::settings::RenderingSettings;
-use crate::ui::keyboard::{add_keyboard_overlay, KeyboardState};
-use crate::ui::topbar::{add_topbar_overlay, TopbarState};
 
 use crate::{CANVAS_HEIGHT, CANVAS_MARGIN_BOTTOM, CANVAS_MARGIN_TOP, CANVAS_WIDTH, DEBUG_LAYOUT};
 
@@ -74,8 +72,6 @@ pub struct Renderer<'a> {
     buffer: Buffer,
     font_system: FontSystem,
     swash_cache: SwashCache,
-    topbar_state: TopbarState,
-    keyboard_state: KeyboardState,
 }
 
 impl<'a> Renderer<'a> {
@@ -105,8 +101,6 @@ impl<'a> Renderer<'a> {
             buffer,
             font_system,
             swash_cache,
-            topbar_state: TopbarState::Normal,
-            keyboard_state: KeyboardState::Normal,
         }
     }
 
@@ -200,20 +194,6 @@ impl<'a> Renderer<'a> {
                     page_canvas,
                 );
             }
-
-            add_topbar_overlay(
-                page_canvas,
-                &mut self.font_system,
-                &mut self.swash_cache,
-                &self.topbar_state,
-            );
-
-            add_keyboard_overlay(
-                page_canvas,
-                &mut self.font_system,
-                &mut self.swash_cache,
-                &self.keyboard_state,
-            );
 
             add_progress_overlay(
                 page_idx,
