@@ -3,8 +3,8 @@ use image::imageops::FilterType;
 use image::{DynamicImage, Rgba, RgbaImage};
 use log::info;
 
-use super::helpers::{draw_box_border, draw_filled_rectangle};
 use super::RenderedBlock;
+use crate::ui::helpers::{draw_box_border, draw_filled_rectangle};
 
 const COLOR_BACKGROUND: Rgba<u8> = Rgba([0xFF, 0xFF, 0xFF, 0xFF]);
 const COLOR_PLACEHOLDER_BG: Rgba<u8> = Rgba([0xEE, 0xEE, 0xEE, 0xFF]);

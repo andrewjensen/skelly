@@ -7,6 +7,8 @@ use image::{Pixel, Rgba, RgbaImage};
 use log::{debug, info};
 use std::fmt;
 
+mod images;
+
 use crate::browser_core::network::resolve_url;
 use crate::browser_core::parsing::{
     Block, Document, ListItem, Span, SpanStyle, TableCell, TableRow,
@@ -18,16 +20,11 @@ use crate::ui::topbar::{add_topbar_overlay, TopbarState};
 
 use crate::{CANVAS_HEIGHT, CANVAS_MARGIN_BOTTOM, CANVAS_MARGIN_TOP, CANVAS_WIDTH, DEBUG_LAYOUT};
 
-mod helpers;
-mod images;
-mod progress;
-
-use helpers::{
-    create_blank_canvas, draw_box_border, draw_filled_rectangle, draw_horizontal_line,
-    draw_vertical_line,
+use crate::ui::helpers::{
+    create_blank_canvas, draw_box_border, draw_horizontal_line, draw_vertical_line,
 };
+use crate::ui::progress::add_progress_overlay;
 use images::{render_placeholder_image_block, rescale_image};
-use progress::add_progress_overlay;
 
 const COLOR_BACKGROUND: Rgba<u8> = Rgba([0xFF, 0xFF, 0xFF, 0xFF]);
 const COLOR_DEBUG_LAYOUT: Rgba<u8> = Rgba([0x00, 0xFF, 0xFF, 0xFF]);
