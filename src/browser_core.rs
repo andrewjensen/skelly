@@ -3,10 +3,17 @@ use std::collections::HashMap;
 use image::RgbaImage;
 use log::{error, info, warn};
 
-use crate::network::{fetch_image, fetch_webpage, resolve_url, ContentType, ImageResponse};
-use crate::parsing::{parse_webpage, Block, Document};
-use crate::rendering::Renderer;
+use crate::browser_core::network::{
+    fetch_image, fetch_webpage, resolve_url, ContentType, ImageResponse,
+};
+use crate::browser_core::parsing::{parse_webpage, Block, Document};
+use crate::browser_core::rendering::Renderer;
 use crate::settings::Settings;
+
+mod debugging;
+mod network;
+mod parsing;
+mod rendering;
 
 pub enum BrowserState {
     Initial,

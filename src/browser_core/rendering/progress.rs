@@ -2,7 +2,7 @@ use cgmath::Point2;
 use cosmic_text::{Attrs, Buffer, Color, FontSystem, Metrics, Shaping, SwashCache, Wrap};
 use image::{Pixel, Rgba, RgbaImage};
 
-use crate::rendering::{draw_box_border, draw_filled_rectangle};
+use crate::browser_core::rendering::{draw_box_border, draw_filled_rectangle};
 
 const BAR_WIDTH: u32 = 320;
 const BAR_HEIGHT: u32 = 16;

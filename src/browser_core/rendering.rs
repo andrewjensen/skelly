@@ -7,10 +7,12 @@ use image::{Pixel, Rgba, RgbaImage};
 use log::{debug, info};
 use std::fmt;
 
+use crate::browser_core::network::resolve_url;
+use crate::browser_core::parsing::{
+    Block, Document, ListItem, Span, SpanStyle, TableCell, TableRow,
+};
 use crate::browser_core::ImagesByUrl;
 use crate::keyboard::{add_keyboard_overlay, KeyboardState};
-use crate::network::resolve_url;
-use crate::parsing::{Block, Document, ListItem, Span, SpanStyle, TableCell, TableRow};
 use crate::settings::RenderingSettings;
 use crate::topbar::{add_topbar_overlay, TopbarState};
 
