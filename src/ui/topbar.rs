@@ -12,7 +12,7 @@ const COLOR_TOPBAR_BACKGROUND: Rgba<u8> = Rgba([0xAA, 0xAA, 0xAA, 0xFF]);
 const COLOR_URL_BAR_BACKGROUND: Rgba<u8> = Rgba([0x00, 0x00, 0x00, 0xFF]);
 
 pub fn add_topbar_overlay(screen: &mut RgbaImage, topbar_state: &TopbarState) {
-    let icon_menu = load_from_memory(include_bytes!("../assets/icons/menu-regular-24.png"))
+    let icon_menu = load_from_memory(include_bytes!("../../assets/icons/menu-regular-24.png"))
         .unwrap()
         .to_rgba8();
 
@@ -35,7 +35,7 @@ pub fn add_topbar_overlay(screen: &mut RgbaImage, topbar_state: &TopbarState) {
             draw_icon(screen, &icon_menu, menu_icon_offset_x, menu_icon_offset_y);
 
             let icon_arrow_left = load_from_memory(include_bytes!(
-                "../assets/icons/left-arrow-alt-regular-24.png"
+                "../../assets/icons/left-arrow-alt-regular-24.png"
             ))
             .unwrap()
             .to_rgba8();
@@ -48,7 +48,7 @@ pub fn add_topbar_overlay(screen: &mut RgbaImage, topbar_state: &TopbarState) {
             );
 
             let icon_arrow_right = load_from_memory(include_bytes!(
-                "../assets/icons/right-arrow-alt-regular-24.png"
+                "../../assets/icons/right-arrow-alt-regular-24.png"
             ))
             .unwrap()
             .to_rgba8();

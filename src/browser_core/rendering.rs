@@ -12,9 +12,9 @@ use crate::browser_core::parsing::{
     Block, Document, ListItem, Span, SpanStyle, TableCell, TableRow,
 };
 use crate::browser_core::ImagesByUrl;
-use crate::keyboard::{add_keyboard_overlay, KeyboardState};
 use crate::settings::RenderingSettings;
-use crate::topbar::{add_topbar_overlay, TopbarState};
+use crate::ui::keyboard::{add_keyboard_overlay, KeyboardState};
+use crate::ui::topbar::{add_topbar_overlay, TopbarState};
 
 use crate::{CANVAS_HEIGHT, CANVAS_MARGIN_BOTTOM, CANVAS_MARGIN_TOP, CANVAS_WIDTH, DEBUG_LAYOUT};
 

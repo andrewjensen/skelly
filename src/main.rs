@@ -8,9 +8,8 @@ use std::sync::mpsc::channel;
 mod application;
 mod backend;
 mod browser_core;
-mod keyboard;
 mod settings;
-mod topbar;
+mod ui;
 mod web_server;
 
 use crate::application::{Application, OutputEvent, UserInputEvent};
