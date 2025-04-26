@@ -4,7 +4,7 @@ use cosmic_text::{
     Weight,
 };
 use image::{Pixel, Rgba, RgbaImage};
-use log::{debug, info};
+use log::{debug, info, warn};
 use std::fmt;
 
 mod images;
@@ -433,7 +433,12 @@ impl<'a> Renderer<'a> {
             rendered_children.push(rendered_child);
         }
 
-        let total_height = offset_y;
+        let mut total_height = offset_y;
+
+        if total_height == 0 {
+            warn!("Empty list item, setting height to a default");
+            total_height = BLOCKQUOTE_BORDER_WIDTH;
+        }
 
         let mut canvas = RgbaImage::new(CANVAS_WIDTH, total_height);
 
